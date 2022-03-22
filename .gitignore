@@ -1,0 +1,15 @@
+# Created by https://www.toptal.com/developers/gitignore/api/go,jetbrains+all,macos,windows
+# Edit at https://www.toptal.com/developers/gitignore?templates=go,jetbrains+all,macos,windows
+
+# goland
+.idea/
+
+# vscode
+.vscode/
+
+### macOS ###
+# General
+.DS_Store
+.AppleDouble
+.LSOverride
+
