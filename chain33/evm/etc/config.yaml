@@ -1,0 +1,11 @@
+PoolSize: 100
+OperationType: 1
+Rate: 5
+DeployerPrivkey: "0x1813e88e2ec3ae44dea06227a118d05ca2b7ba1d90e267d844a60538a6d48fbc"
+DeployerAddr: "1MowztiYG22fzqZEmf9PnwCwpEcLqmmjMz"
+Chain:
+  - "http://172.16.103.233:28901"
+ParaName:
+  - "user.p.para2."
+ContractAddr:
+  - "13dL5HoVKWMtsCioAehNHwdRawmKRpjWS4"
