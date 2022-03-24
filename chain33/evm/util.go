@@ -3,6 +3,7 @@ package main
 import (
 	chainAddress "github.com/33cn/chain33/common/address"
 	chainTypes "github.com/33cn/chain33/types"
+	chainUtil "github.com/33cn/chain33/util"
 	evmAbi "github.com/33cn/plugin/plugin/dapp/evm/executor/abi"
 	evmtypes "github.com/33cn/plugin/plugin/dapp/evm/types"
 	"math/rand"
@@ -12,6 +13,7 @@ import (
 const (
 	yccChainId     = 999
 	defaultFeeRate = 100000
+	groupSize      = 20
 )
 
 // CallContract 成功部署后的合约
@@ -21,8 +23,35 @@ type CallContract struct {
 	Abi          string
 }
 
-// LocalCreateYCCEVMTx 本地构造ycc的evm交易
+// LocalCreateUnSignYCCEVMTx 本地构造ycc的evm未签名交易
+func (c *CallContract) LocalCreateUnSignYCCEVMTx(parameter string) (*chainTypes.Transaction, error) {
+	return c.localCreateYCCEVMTx(parameter)
+}
+
+// LocalCreateSignYCCEVMTx 本地构造ycc的evm签名交易
+func (c *CallContract) LocalCreateSignYCCEVMTx(pristr, parameter string) (*chainTypes.Transaction, error) {
+	tx, err := c.localCreateYCCEVMTx(parameter)
+	if err != nil {
+		return nil, err
+	}
+	prikey := chainUtil.HexToPrivkey(pristr)
+	tx.Sign(chainTypes.SECP256K1, prikey)
+
+	return tx, nil
+}
+
+// LocalCreateYCCEVMTx 本地构造ycc的evm默认签名交易
 func (c *CallContract) LocalCreateYCCEVMTx(parameter string) (*chainTypes.Transaction, error) {
+	tx, err := c.localCreateYCCEVMTx(parameter)
+	if err != nil {
+		return nil, err
+	}
+	tx.Sign(chainTypes.SECP256K1, pri)
+
+	return tx, nil
+}
+
+func (c *CallContract) localCreateYCCEVMTx(parameter string) (*chainTypes.Transaction, error) {
 	exec := c.ParaName + evmtypes.ExecutorName
 	toAddr := chainAddress.ExecAddress(exec)
 
@@ -43,7 +72,67 @@ func (c *CallContract) LocalCreateYCCEVMTx(parameter string) (*chainTypes.Transa
 	random := rand.New(rand.NewSource(time.Now().UnixNano()))
 	tx.Nonce = random.Int63()
 	tx.ChainID = yccChainId
-	tx.Sign(chainTypes.SECP256K1, pri)
 
 	return tx, nil
+}
+
+// LocalTxGroup 批量生成本地签名后交易,多个交易会分成N个交易组形式
+func (c *CallContract) LocalTxGroup(pristr string, parameters ...string) ([]*chainTypes.Transaction, error) {
+	plen := len(parameters)
+	//存放最终交易
+	txs := make([]*chainTypes.Transaction, 0, (plen/groupSize)+1)
+	//用来缓存临时交易
+	tmp := make([]*chainTypes.Transaction, groupSize, groupSize)
+	prikey := chainUtil.HexToPrivkey(pristr)
+	i := 0
+	//先循环生成交易
+	for ; i < plen; i++ {
+		tx, err := c.LocalCreateYCCEVMTx(parameters[i])
+		if err != nil {
+			return nil, err
+		}
+		tmp[i%groupSize] = tx
+		if i%groupSize != groupSize-1 {
+			continue
+		}
+
+		//需要分割,十倍手续费保证成功
+		tx2, err := chainTypes.CreateTxGroup(tmp, 10*defaultFeeRate)
+		if err != nil {
+			return nil, err
+		}
+		for j := 0; j < groupSize; j++ {
+			err := tx2.SignN(j, chainTypes.SECP256K1, prikey)
+			if err != nil {
+				return nil, err
+			}
+		}
+		txs = append(txs, tx2.Tx())
+	}
+
+	//将最后一组取出来,如果是单笔交易直接存进去，如果是多笔交易再进行一次交易组构造
+	k := plen % groupSize
+	switch k {
+	//交易组正好装完,不做处理
+	case 0:
+	//最后一组里只有一笔
+	case 1:
+		txs = append(txs, tmp[0])
+	default:
+		// 取最后一组的交易 左包右闭
+		tx2, err := chainTypes.CreateTxGroup(tmp[0:k], 10*defaultFeeRate)
+		if err != nil {
+			return nil, err
+		}
+		for j := 0; j < k; j++ {
+			err := tx2.SignN(j, chainTypes.SECP256K1, prikey)
+			if err != nil {
+				return nil, err
+			}
+		}
+		txs = append(txs, tx2.Tx())
+	}
+
+	return txs, nil
+
 }
