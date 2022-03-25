@@ -1,11 +1,22 @@
-PoolSize: 100
+PoolSize: 10
 OperationType: 1
-Rate: 5
+Rate: 10
+GroupSie: 100
 DeployerPrivkey: "0x1813e88e2ec3ae44dea06227a118d05ca2b7ba1d90e267d844a60538a6d48fbc"
 DeployerAddr: "1MowztiYG22fzqZEmf9PnwCwpEcLqmmjMz"
+RpcType: 3
 Chain:
-  - "http://172.16.103.233:28901"
+  - "172.16.103.233:8912"
+  - "172.16.103.233:8922"
+  - "172.16.103.233:8932"
+  - "172.16.103.233:8942"
 ParaName:
+  - "user.p.para1."
   - "user.p.para2."
+  - "user.p.para3."
+  - "user.p.para4."
 ContractAddr:
-  - "13dL5HoVKWMtsCioAehNHwdRawmKRpjWS4"
+  - "199CZAGfUp6T1MPiMF6RWquvtRJ5FFj5q9"
+  - "14yzwh1ENLgu4Y7pyFcJxH1gRQa7rF76tU"
+  - "13Zxa6kPtBiejx5sZVTefJ9NDAqukrrCCu"
+  - "1JqgfjiEzjH4sn2gGjaWx12gboPxBBd1A5"
