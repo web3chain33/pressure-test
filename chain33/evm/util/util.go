@@ -1,4 +1,4 @@
-package main
+package util
 
 import (
 	chainAddress "github.com/33cn/chain33/common/address"
@@ -7,14 +7,21 @@ import (
 	evmAbi "github.com/33cn/plugin/plugin/dapp/evm/executor/abi"
 	evmtypes "github.com/33cn/plugin/plugin/dapp/evm/types"
 	"math/rand"
+	"runtime"
+	"sync"
 	"time"
 )
 
 const (
 	yccChainId     = 999
-	defaultFeeRate = 100000
-	groupSize      = 20
+	defaultFeeRate = chainTypes.DefaultMinFee
+	groupSize      = int(chainTypes.MaxTxGroupSize)
 )
+
+var cpuNum = runtime.NumCPU()
+
+// 并发的平行链数量
+var parasLen = 4
 
 // CallContract 成功部署后的合约
 type CallContract struct {
@@ -40,16 +47,16 @@ func (c *CallContract) LocalCreateSignYCCEVMTx(pristr, parameter string) (*chain
 	return tx, nil
 }
 
-// LocalCreateYCCEVMTx 本地构造ycc的evm默认签名交易
-func (c *CallContract) LocalCreateYCCEVMTx(parameter string) (*chainTypes.Transaction, error) {
-	tx, err := c.localCreateYCCEVMTx(parameter)
-	if err != nil {
-		return nil, err
-	}
-	tx.Sign(chainTypes.SECP256K1, pri)
-
-	return tx, nil
-}
+//// LocalCreateYCCEVMTx 本地构造ycc的evm默认签名交易
+//func (c *CallContract) LocalCreateYCCEVMTx(parameter string) (*chainTypes.Transaction, error) {
+//	tx, err := c.localCreateYCCEVMTx(parameter)
+//	if err != nil {
+//		return nil, err
+//	}
+//	tx.Sign(chainTypes.SECP256K1, pri)
+//
+//	return tx, nil
+//}
 
 func (c *CallContract) localCreateYCCEVMTx(parameter string) (*chainTypes.Transaction, error) {
 	exec := c.ParaName + evmtypes.ExecutorName
@@ -78,6 +85,48 @@ func (c *CallContract) localCreateYCCEVMTx(parameter string) (*chainTypes.Transa
 
 // LocalTxGroup 批量生成本地签名后交易,多个交易会分成N个交易组形式
 func (c *CallContract) LocalTxGroup(pristr string, parameters ...string) ([]*chainTypes.Transaction, error) {
+	return c.localTxGroup(pristr, parameters...)
+}
+
+// LocalTxGroupFast 高性能
+func (c *CallContract) LocalTxGroupFast(pristr string, parameters ...string) ([]*chainTypes.Transaction, error) {
+	plen := len(parameters)
+	ch := make(chan []*chainTypes.Transaction)
+	gsize := plen * parasLen / cpuNum
+	//gsize笔起一个携程
+	var wg sync.WaitGroup
+	g := plen/gsize + 1
+	if plen%gsize == 0 {
+		g -= 1
+	}
+	wg.Add(g)
+	for i := 0; i < g; i++ {
+		go func(n int) {
+			res, _ := c.localTxGroup(pristr, parameters[n*gsize:min(plen, (n+1)*gsize)]...)
+			ch <- res
+			wg.Done()
+		}(i)
+	}
+
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+	txs := []*chainTypes.Transaction{}
+	for v := range ch {
+		txs = append(txs, v...)
+	}
+	return txs, nil
+}
+
+func min(a, b int) int {
+	if a > b {
+		return b
+	}
+	return a
+}
+
+func (c *CallContract) localTxGroup(pristr string, parameters ...string) ([]*chainTypes.Transaction, error) {
 	plen := len(parameters)
 	//存放最终交易
 	txs := make([]*chainTypes.Transaction, 0, (plen/groupSize)+1)
@@ -87,7 +136,7 @@ func (c *CallContract) LocalTxGroup(pristr string, parameters ...string) ([]*cha
 	i := 0
 	//先循环生成交易
 	for ; i < plen; i++ {
-		tx, err := c.LocalCreateYCCEVMTx(parameters[i])
+		tx, err := c.localCreateYCCEVMTx(parameters[i])
 		if err != nil {
 			return nil, err
 		}
@@ -117,7 +166,9 @@ func (c *CallContract) LocalTxGroup(pristr string, parameters ...string) ([]*cha
 	case 0:
 	//最后一组里只有一笔
 	case 1:
-		txs = append(txs, tmp[0])
+		tx := tmp[0]
+		tx.Sign(chainTypes.SECP256K1, prikey)
+		txs = append(txs, tx)
 	default:
 		// 取最后一组的交易 左包右闭
 		tx2, err := chainTypes.CreateTxGroup(tmp[0:k], 10*defaultFeeRate)
@@ -134,5 +185,4 @@ func (c *CallContract) LocalTxGroup(pristr string, parameters ...string) ([]*cha
 	}
 
 	return txs, nil
-
 }
