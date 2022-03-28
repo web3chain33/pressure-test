@@ -92,6 +92,8 @@ func main() {
 	}
 
 	if c.RpcType == 3 {
+		start := time.Now()
+
 		nftId := 0
 		r := c.Rate / len(c.ContractAddr) + 1
 		job3 := make([][][]*chainTypes.Transaction, 0, len(c.ContractAddr))
@@ -107,9 +109,11 @@ func main() {
 			job3 = append(job3, jobLists)
 		}
 
+		stop := time.Now()
+		fmt.Println("交易构造完毕，开始发送, 构造开始时间: ", start.String(), "结束时间: ", stop.String(), "耗时：", stop.Unix() - start.Unix())
 		for h:=0; h<len(job3); h++ {
 			for j := 0; j < len(job3[h]); j++ {
-				go SendList(c.Chain[h], job3[h][j])
+				SendList(c.Chain[h], job3[h][j])
 			}
 		}
 
@@ -444,21 +448,24 @@ func InitGrpcJobList(nftId int,jobLists [][]*chainTypes.Transaction, contractAdd
 }
 
 func SendList(endpoint string, jobList []*chainTypes.Transaction) {
-	conn, err := grpc.Dial(grpcclient.NewMultipleURL(endpoint), grpc.WithInsecure())
+	maxMsgSize := 20 * 1024 * 1024 //最大传输数据 最大区块大小
+	diaOpt := grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize),
+		grpc.MaxCallSendMsgSize(maxMsgSize))
+
+	conn, err := grpc.Dial(grpcclient.NewMultipleURL(endpoint), grpc.WithInsecure(), diaOpt)
 	if err != nil {
 		fmt.Println("grpcclient.NewMultipleURL err:", err)
 		return
 	}
 	client := chainTypes.NewChain33Client(conn)
 	for i:=0; i< len(jobList); {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-		defer cancel()
 
-		_, err := client.SendTransactions(ctx, &chainTypes.Transactions{Txs: jobList[i: i+5]})
+		replys, err := client.SendTransactions(context.Background(), &chainTypes.Transactions{Txs: jobList[i: i+5]})
 		i+= 5
 		if err != nil {
 			fmt.Println("SendTransaction err:", err)
 		}
+		fmt.Println("SendTransactions replys, isOK: ", replys.ReplyList[0].IsOk)
 	}
 }
 

@@ -7,4 +7,5 @@ require (
 	github.com/33cn/plugin v1.66.3
 	gitlab.33.cn/proof/backend-micro v1.0.8
 	google.golang.org/grpc v1.40.0
+	gopkg.in/yaml.v2 v2.4.0
 )
