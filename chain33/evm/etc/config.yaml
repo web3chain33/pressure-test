@@ -1,7 +1,8 @@
 PoolSize: 10
 OperationType: 1
 Rate: 10
-GroupSie: 100
+GroupSie: 20
+GrpcTxNum: 400
 DeployerPrivkey: "0x1813e88e2ec3ae44dea06227a118d05ca2b7ba1d90e267d844a60538a6d48fbc"
 DeployerAddr: "1MowztiYG22fzqZEmf9PnwCwpEcLqmmjMz"
 RpcType: 3

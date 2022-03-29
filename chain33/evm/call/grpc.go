@@ -78,11 +78,6 @@ func (c *CallContract) LocalCreateYCCEVMGroupTx(parameters []string, privkeys []
 		random := rand.New(rand.NewSource(time.Now().UnixNano()))
 		tx.Nonce = random.Int63()
 		tx.ChainID = yccChainId
-		if privkeysCount > 0 && privkeysCount == parameterCount {
-			tx.Sign(chainTypes.SECP256K1, chainUtil.HexToPrivkey(privkeys[i]))
-		} else {
-			tx.Sign(chainTypes.SECP256K1, c.DeployerPri)
-		}
 		txList = append(txList, tx)
 	}
 	tg, err :=  chainTypes.CreateTxGroup(txList, 10 * defaultFeeRate)

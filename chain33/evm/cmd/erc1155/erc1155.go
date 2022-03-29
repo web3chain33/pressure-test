@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"sync"
 	"time"
 )
 
@@ -27,6 +28,7 @@ type Conf struct {
 	OperationType   int      `yaml:"OperationType"`
 	Rate            int      `yaml:"Rate"`
 	GroupSie        int      `yaml:"GroupSie"`
+	GrpcTxNum       int      `yaml:"GrpcTxNum"`
 	DeployerPrivkey string   `yaml:"DeployerPrivkey"`
 	DeployerAddr    string   `yaml:"DeployerAddr"`
 	RpcType         int      `yaml:"RpcType"` // 1:jsonrpc  2:grpc
@@ -95,9 +97,9 @@ func main() {
 		start := time.Now()
 
 		nftId := 0
-		r := c.Rate / len(c.ContractAddr) + 1
+		r := c.Rate/len(c.ContractAddr) + 1
 		job3 := make([][][]*chainTypes.Transaction, 0, len(c.ContractAddr))
-		for k := 0; k< len(c.ContractAddr); k++  {
+		for k := 0; k < len(c.ContractAddr); k++ {
 			jobLists := make([][]*chainTypes.Transaction, 0, r)
 			for i := 0; i < r; i++ {
 				l := make([]*chainTypes.Transaction, 0, len(AddressList))
@@ -110,14 +112,72 @@ func main() {
 		}
 
 		stop := time.Now()
-		fmt.Println("交易构造完毕，开始发送, 构造开始时间: ", start.String(), "结束时间: ", stop.String(), "耗时：", stop.Unix() - start.Unix())
-		for h:=0; h<len(job3); h++ {
+		fmt.Println("交易构造完毕，开始发送, 构造开始时间: ", start.String(), "结束时间: ", stop.String(), "耗时：", stop.Unix()-start.Unix())
+		for h := 0; h < len(job3); h++ {
 			for j := 0; j < len(job3[h]); j++ {
-				SendList(c.Chain[h], job3[h][j])
+				go SendList(c.Chain[h], job3[h][j], c.GrpcTxNum)
 			}
 		}
 
 		time.Sleep(20 * time.Minute)
+		return
+	}
+
+	if c.RpcType == 4 {
+		start := time.Now()
+
+		contractAddrLen := len(c.ContractAddr)
+
+		nftId := 0
+		r := c.Rate/len(c.ContractAddr) + 1
+		job3 := make([][][]*chainTypes.Transaction, 0, len(c.ContractAddr))
+
+		poolSize := 6
+		wg := &sync.WaitGroup{}
+		wg.Add(poolSize * len(c.ContractAddr))
+
+		groupChains := make([]chan *TxGroupParams, 0, contractAddrLen)
+		resultChains := make([]chan *chainTypes.Transaction, 0, contractAddrLen)
+
+		job3Len := 0
+		for k := 0; k < len(c.ContractAddr); k++ {
+			jobLists := make([][]*chainTypes.Transaction, 0, r)
+			for i := 0; i < r; i++ {
+				l := make([]*chainTypes.Transaction, 0, len(AddressList))
+				jobLists = append(jobLists, l)
+				job3Len++
+			}
+			job3 = append(job3, jobLists)
+
+			groupChain := make(chan *TxGroupParams, 1000)
+			groupChains = append(groupChains, groupChain)
+			resultChain := make(chan *chainTypes.Transaction, 1000)
+			resultChains = append(resultChains, resultChain)
+
+			go PollCreateTxGroup(poolSize, c.ContractAddr[k], c.ParaName[k], c.DeployerPrivkey, groupChains[k], resultChains[k], wg)
+			go ChainToJobList(resultChains[k], job3[k])
+			go InitGrpcTxGroupChain(nftId, c.OperationType, r, c.GroupSie, groupChains[k])
+
+			nftId += len(AddressList) * r
+
+		}
+		wg.Wait()
+		time.Sleep(1 * time.Second)
+
+		createStop := time.Now()
+		fmt.Println("交易构造完毕，开始发送, 构造开始时间: ", start.String(), "结束时间: ", createStop.String(), "耗时：", createStop.Unix()-start.Unix())
+
+		wg.Add(job3Len)
+		for h := 0; h < len(job3); h++ {
+			for j := 0; j < len(job3[h]); j++ {
+				go SendListWaitGroup(c.Chain[h], job3[h][j], c.GrpcTxNum, wg)
+			}
+		}
+
+		wg.Wait()
+		time.Sleep(1 * time.Second)
+		sendStop := time.Now()
+		fmt.Println("交易发送完毕，发送结束时间", sendStop.String(), "耗时：", sendStop.Unix() - createStop.Unix())
 		return
 	}
 
@@ -332,7 +392,74 @@ func InitGrpcJobChain(grpcJobChain []chan *chainTypes.Transaction, contractAddr,
 
 }
 
-func InitGrpcJobList(nftId int,jobLists [][]*chainTypes.Transaction, contractAddr, paraName, deployerPrivkey string, operationType, rate, groupSize int) int {
+type TxGroupParams struct {
+	Params   []string
+	Privkeys []string
+}
+
+func PollCreateTxGroup(poolSize int, contractAddr, paraName, deployerPrivkey string, groupChain chan *TxGroupParams, resultChain chan *chainTypes.Transaction, wg *sync.WaitGroup) {
+	c := &call.CallContract{
+		ContractAddr: contractAddr,
+		ParaName:     paraName,
+		Abi:          abi,
+		DeployerPri:  chainUtil.HexToPrivkey(deployerPrivkey),
+	}
+
+	for i := 0; i < poolSize; i++ {
+		go func(c *call.CallContract, groupChain chan *TxGroupParams, wg *sync.WaitGroup) {
+			for param := range groupChain {
+				tx, err := c.LocalCreateYCCEVMGroupTx(param.Params, param.Privkeys)
+				if err != nil {
+					fmt.Println("c.LocalCreateYCCEVMGroupTx ,err: ", err)
+					continue
+				}
+				resultChain <- tx
+			}
+			wg.Done()
+		}(c, groupChain, wg)
+	}
+}
+
+func ChainToJobList(resultChain chan *chainTypes.Transaction, jobLists [][]*chainTypes.Transaction) {
+	groupCount := 0
+	for tx := range resultChain {
+		groupCount++
+		y := groupCount % len(jobLists)
+		jobLists[y] = append(jobLists[y], tx)
+	}
+}
+
+func InitGrpcTxGroupChain(nftId int, operationType, rate, groupSize int, groupChain chan *TxGroupParams) {
+
+	txCount := 0
+	params := make([]string, 0, groupSize)
+	privkeys := make([]string, 0, groupSize)
+
+	if operationType == 1 {
+		for i := 0; i < len(AddressList); i++ {
+			for j := 0; j < rate; j++ {
+				nftId++
+				txCount++
+				params = append(params, fmt.Sprintf("mint(%q, %v)", AddressList[i].Address, nftId))
+
+				if txCount >= groupSize {
+					param := &TxGroupParams{
+						Params:   params,
+						Privkeys: privkeys,
+					}
+					groupChain <- param
+
+					txCount = 0
+					params = make([]string, 0, groupSize)
+				}
+
+			}
+		}
+		close(groupChain)
+	}
+}
+
+func InitGrpcJobList(nftId int, jobLists [][]*chainTypes.Transaction, contractAddr, paraName, deployerPrivkey string, operationType, rate, groupSize int) int {
 	c := &call.CallContract{
 		ContractAddr: contractAddr,
 		ParaName:     paraName,
@@ -447,7 +574,7 @@ func InitGrpcJobList(nftId int,jobLists [][]*chainTypes.Transaction, contractAdd
 	return nftId
 }
 
-func SendList(endpoint string, jobList []*chainTypes.Transaction) {
+func SendListWaitGroup(endpoint string, jobList []*chainTypes.Transaction, grpcTxNum int, wg *sync.WaitGroup) {
 	maxMsgSize := 20 * 1024 * 1024 //最大传输数据 最大区块大小
 	diaOpt := grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize),
 		grpc.MaxCallSendMsgSize(maxMsgSize))
@@ -458,10 +585,31 @@ func SendList(endpoint string, jobList []*chainTypes.Transaction) {
 		return
 	}
 	client := chainTypes.NewChain33Client(conn)
-	for i:=0; i< len(jobList); {
+	for i := 0; i < len(jobList); i += grpcTxNum {
+		replys, err := client.SendTransactions(context.Background(), &chainTypes.Transactions{Txs: jobList[i : i+grpcTxNum]})
 
-		replys, err := client.SendTransactions(context.Background(), &chainTypes.Transactions{Txs: jobList[i: i+5]})
-		i+= 5
+		if err != nil {
+			fmt.Println("SendTransaction err:", err)
+		}
+		fmt.Println("SendTransactions replys, isOK: ", replys.ReplyList[0].IsOk)
+	}
+	wg.Done()
+}
+
+func SendList(endpoint string, jobList []*chainTypes.Transaction, grpcTxNum int) {
+	maxMsgSize := 20 * 1024 * 1024 //最大传输数据 最大区块大小
+	diaOpt := grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize),
+		grpc.MaxCallSendMsgSize(maxMsgSize))
+
+	conn, err := grpc.Dial(grpcclient.NewMultipleURL(endpoint), grpc.WithInsecure(), diaOpt)
+	if err != nil {
+		fmt.Println("grpcclient.NewMultipleURL err:", err)
+		return
+	}
+	client := chainTypes.NewChain33Client(conn)
+	for i := 0; i < len(jobList); i += grpcTxNum {
+		replys, err := client.SendTransactions(context.Background(), &chainTypes.Transactions{Txs: jobList[i : i+grpcTxNum]})
+
 		if err != nil {
 			fmt.Println("SendTransaction err:", err)
 		}
