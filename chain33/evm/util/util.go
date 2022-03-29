@@ -21,13 +21,17 @@ const (
 var cpuNum = runtime.NumCPU()
 
 // 并发的平行链数量
-var parasLen = 4
+var parasSize = 4
 
 // CallContract 成功部署后的合约
 type CallContract struct {
 	ContractAddr string
 	ParaName     string
 	Abi          string
+}
+
+func SetParasLen(l int) {
+	parasSize = l
 }
 
 // LocalCreateUnSignYCCEVMTx 本地构造ycc的evm未签名交易
@@ -92,7 +96,7 @@ func (c *CallContract) LocalTxGroup(pristr string, parameters ...string) ([]*cha
 func (c *CallContract) LocalTxGroupFast(pristr string, parameters ...string) ([]*chainTypes.Transaction, error) {
 	plen := len(parameters)
 	ch := make(chan []*chainTypes.Transaction)
-	gsize := plen * parasLen / cpuNum
+	gsize := plen * parasSize / cpuNum
 	//gsize笔起一个携程
 	var wg sync.WaitGroup
 	g := plen/gsize + 1
@@ -102,7 +106,7 @@ func (c *CallContract) LocalTxGroupFast(pristr string, parameters ...string) ([]
 	wg.Add(g)
 	for i := 0; i < g; i++ {
 		go func(n int) {
-			res, _ := c.localTxGroup(pristr, parameters[n*gsize:min(plen, (n+1)*gsize)]...)
+			res, _ := c.localTxGroup(pristr, parameters[n*gsize:Min(plen, (n+1)*gsize)]...)
 			ch <- res
 			wg.Done()
 		}(i)
@@ -119,7 +123,8 @@ func (c *CallContract) LocalTxGroupFast(pristr string, parameters ...string) ([]
 	return txs, nil
 }
 
-func min(a, b int) int {
+// Min 返回小的
+func Min(a, b int) int {
 	if a > b {
 		return b
 	}
