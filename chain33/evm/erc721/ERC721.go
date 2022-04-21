@@ -7,9 +7,7 @@ import (
 	log "github.com/33cn/chain33/common/log/log15"
 	"github.com/33cn/chain33/rpc/grpcclient"
 	chainTypes "github.com/33cn/chain33/types"
-	"gitlab.33.cn/proof/backend-micro/tools/soldeploy/types"
-	"gitlab.33.cn/proof/backend-micro/tools/soldeploy/util"
-	util2 "gitlab.33.cn/proof/pressure-test/chain33/evm/util"
+	"gitlab.33.cn/proof/pressure-test/chain33/evm/util"
 	"google.golang.org/grpc"
 	"runtime"
 	"sync"
@@ -28,7 +26,7 @@ func main() {
 		paras = append(paras, v)
 	}
 	parasLen := len(paras)
-	util2.SetParasLen(parasLen)
+	util.SetParasLen(parasLen)
 	var wg sync.WaitGroup
 	wg.Add(parasLen)
 	for _, v := range paras {
@@ -62,24 +60,23 @@ func (p *Para) Run() {
 	client := chainTypes.NewChain33Client(conn)
 
 	//初始化区块链
-	chainCfg := types.Chain{
+	deployeContract := util.DeployeContract{
 		ParaName:    p.Name,
-		EndPoint:    p.JrpcEndpoint,
+		Abi:         Cfg.Abi,
+		Bin:         Cfg.Bin,
+		Parameter:   `constructor("zbc", "zbc")`,
+		Client:      client,
 		CallAddr:    Cfg.UserAddress,
 		CallPrivkey: Cfg.UserPrivateKey,
-		TxExpire:    "300s",
-	}
-	contractCfg := types.Contract{
-		ABI: Cfg.Abi,
-		BIN: Cfg.Bin,
 	}
 	//平行链部署合约
-	res1, err := util.DeployContract(chainCfg, contractCfg)
+	contractTxHash, contractAddr, err := deployeContract.Deploy()
 	if err != nil {
 		panic(err)
 	}
-	log.Info(fmt.Sprintf("平行链%v部署的合约地址:%v , 交易哈希:%v", p.Name, res1.ContractAddr, res1.TxHash))
-	hashByte, _ := chainCommon.FromHex(res1.TxHash)
+
+	log.Info(fmt.Sprintf("平行链%v部署的合约地址:%v , 交易哈希:%v", p.Name, contractAddr, contractTxHash))
+	hashByte, _ := chainCommon.FromHex(contractTxHash)
 	for {
 		time.Sleep(1 * time.Second)
 		resp, err := client.QueryTransaction(context.Background(), &chainTypes.ReqHash{Hash: hashByte})
@@ -91,9 +88,10 @@ func (p *Para) Run() {
 		}
 	}
 	log.Info(fmt.Sprintf("平行链%vEVM合约部署完成", p.Name))
+
 	// 生成合约结构体
-	c := &util2.CallContract{
-		ContractAddr: res1.ContractAddr,
+	c := &util.CallContract{
+		ContractAddr: contractAddr,
 		ParaName:     p.Name,
 		Abi:          Cfg.Abi,
 	}
@@ -136,7 +134,7 @@ func (p *Para) Run() {
 	log.Info(fmt.Sprintf("平行链%v开始发送，每次发送:%v笔,共发送%v次", p.Name, Cfg.GrpcTxNum, g))
 	for i := 0; i < g; i++ {
 		go func(n int) {
-			_, err := client.SendTransactions(context.Background(), &chainTypes.Transactions{Txs: txs[n*Cfg.GrpcTxNum : util2.Min((n+1)*Cfg.GrpcTxNum, len(txs))]})
+			_, err := client.SendTransactions(context.Background(), &chainTypes.Transactions{Txs: txs[n*Cfg.GrpcTxNum : util.Min((n+1)*Cfg.GrpcTxNum, len(txs))]})
 			if err != nil {
 				panic(err)
 			}

@@ -1,6 +1,9 @@
 package util
 
 import (
+	"context"
+	"fmt"
+	chainCommon "github.com/33cn/chain33/common"
 	chainAddress "github.com/33cn/chain33/common/address"
 	chainTypes "github.com/33cn/chain33/types"
 	chainUtil "github.com/33cn/chain33/util"
@@ -8,6 +11,7 @@ import (
 	evmtypes "github.com/33cn/plugin/plugin/dapp/evm/types"
 	"math/rand"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 )
@@ -23,6 +27,17 @@ var cpuNum = runtime.NumCPU()
 // 并发的平行链数量
 var parasSize = 4
 
+// CallContract 需要部署的合约
+type DeployeContract struct {
+	ParaName    string
+	Abi         string
+	Bin         string
+	Parameter   string
+	Client      chainTypes.Chain33Client
+	CallAddr    string
+	CallPrivkey string
+}
+
 // CallContract 成功部署后的合约
 type CallContract struct {
 	ContractAddr string
@@ -32,6 +47,77 @@ type CallContract struct {
 
 func SetParasLen(l int) {
 	parasSize = l
+}
+
+// Deploy contract return txhash,ContractAddr
+func (d *DeployeContract) Deploy() (string, string, error) {
+	//创建本地合约交易
+	tx, err := d.LocalCreateDeployTx()
+	if err != nil {
+		return "", "", err
+	}
+	txHash := chainCommon.ToHex(tx.Hash())
+
+	// grpc发送交易
+	res, err := d.Client.SendTransaction(context.Background(), tx)
+	if err != nil {
+		return "", "", err
+	}
+	if !res.IsOk {
+		return "", "", fmt.Errorf("SendTransaction fail %v", string(res.Msg))
+	}
+
+	//获取合约地址
+	contractAddr := LocalGetContractAddr(d.CallAddr, txHash)
+
+	return txHash, contractAddr, nil
+}
+
+func (d *DeployeContract) LocalCreateDeployTx() (*chainTypes.Transaction, error) {
+	exec := d.ParaName + evmtypes.ExecutorName
+	toAddr := chainAddress.ExecAddress(exec)
+
+	bCode, err := chainCommon.FromHex(d.Bin)
+	if err != nil {
+		return nil, err
+	}
+	if d.Parameter != "" {
+		packData, err := evmAbi.PackContructorPara(d.Parameter, d.Abi)
+		if err != nil {
+			return nil, err
+		}
+
+		bCode = append(bCode, packData...)
+	}
+
+	action := evmtypes.EVMContractAction{
+		Code:         bCode,
+		ContractAddr: toAddr,
+	}
+
+	tx := &chainTypes.Transaction{
+		Execer:    []byte(exec),
+		Payload:   chainTypes.Encode(&action),
+		Signature: nil,
+		To:        toAddr,
+		ChainID:   yccChainId,
+	}
+	//十倍手续费保证成功
+	tx.Fee, _ = tx.GetRealFee(10 * defaultFeeRate)
+
+	random := rand.New(rand.NewSource(time.Now().UnixNano()))
+	tx.Nonce = random.Int63()
+	prikey := chainUtil.HexToPrivkey(d.CallPrivkey)
+	tx.Sign(chainTypes.SECP256K1, prikey)
+
+	return tx, nil
+}
+
+// LocalGetContractAddr 本地构建合约地址 交易哈希需要去掉0x前缀
+// 参考
+func LocalGetContractAddr(caller, txhash string) string {
+	return chainAddress.HashToAddress(chainAddress.NormalVer,
+		chainAddress.ExecPubKey(caller+strings.TrimPrefix(txhash, "0x"))).String()
 }
 
 // LocalCreateUnSignYCCEVMTx 本地构造ycc的evm未签名交易
