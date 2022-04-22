@@ -11,8 +11,6 @@ import (
 
 	evmabi "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-
-	"gitlab.33.cn/utils/go-kit/convert"
 )
 
 type Client struct {
@@ -110,5 +108,6 @@ func (c *Client) GetSuccessNum(owner common.Address) (int64, error) {
 	if len(resp) == 0 {
 		return 0, nil
 	}
-	return convert.ToInt64(resp), nil
+
+	return big.NewInt(0).SetBytes(resp).Int64(), nil
 }
