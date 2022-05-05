@@ -183,11 +183,12 @@ func (c *CallContract) LocalTxGroupFast(pristr string, parameters ...string) ([]
 	plen := len(parameters)
 	ch := make(chan []*chainTypes.Transaction)
 	gsize := plen * parasSize / cpuNum
-	//gsize笔起一个携程
+	//gsize笔起一个协程
 	var wg sync.WaitGroup
-	g := plen/gsize + 1
-	if plen%gsize == 0 {
-		g -= 1
+	// 向上取整
+	g := plen / gsize
+	if plen%gsize != 0 {
+		g += 1
 	}
 	wg.Add(g)
 	for i := 0; i < g; i++ {
@@ -197,7 +198,6 @@ func (c *CallContract) LocalTxGroupFast(pristr string, parameters ...string) ([]
 			wg.Done()
 		}(i)
 	}
-
 	go func() {
 		wg.Wait()
 		close(ch)

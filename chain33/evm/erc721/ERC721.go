@@ -47,7 +47,7 @@ type Para struct {
 
 func (p *Para) Run() {
 	//grpc1
-	maxMsgSize := 20 * 1024 * 1024 //最大传输数据 最大区块大小
+	maxMsgSize := 4 * 1024 * 1024 //最大传输数据 最大区块大小 与服务端一致
 	diaOpt := grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize),
 		grpc.MaxCallSendMsgSize(maxMsgSize))
 
@@ -122,19 +122,20 @@ func (p *Para) Run() {
 	log.Info(fmt.Sprintf("平行链%v构造用时:%vs", p.Name, time2-time1))
 	log.Info(fmt.Sprintf("平行链%v成功构造交易组:%v笔", p.Name, len(txs)))
 
-	//一笔交易是一个交易组，一个交易组目前的大小是20*1kb
-	// 可以弄400个交易组一次性发送
+	//一笔交易是一个交易组，一个交易组目前的大小是接近20*0.5kb
+	// grpc默认限制4mb接收大小，可以弄400个交易组一次性发送
 	var wg sync.WaitGroup
 	time1 = time.Now().Unix()
-	g := len(txs)/Cfg.GrpcTxNum + 1
-	if len(txs)%Cfg.GrpcTxNum == 0 {
-		g = g - 1
+	g := len(txs) / Cfg.GrpcTxNum
+	if len(txs)%Cfg.GrpcTxNum != 0 {
+		g += 1
 	}
 	wg.Add(g)
 	log.Info(fmt.Sprintf("平行链%v开始发送，每次发送:%v笔,共发送%v次", p.Name, Cfg.GrpcTxNum, g))
 	for i := 0; i < g; i++ {
 		go func(n int) {
-			_, err := client.SendTransactions(context.Background(), &chainTypes.Transactions{Txs: txs[n*Cfg.GrpcTxNum : util.Min((n+1)*Cfg.GrpcTxNum, len(txs))]})
+			_, err := client.SendTransactions(context.Background(),
+				&chainTypes.Transactions{Txs: txs[n*Cfg.GrpcTxNum : util.Min((n+1)*Cfg.GrpcTxNum, len(txs))]})
 			if err != nil {
 				panic(err)
 			}
