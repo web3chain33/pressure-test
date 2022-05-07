@@ -84,7 +84,7 @@ disableExecCheck = true
 name="para"
 minerstart=false #true TODO 没有
 genesisBlockTime=1514533390
-genesis="133AfuMYQXRxc45JGUb1jLk1M1W4ka39L1"
+genesis="12HKLEn6g4FH39yUbHh4EVJWcFo5CXg22d"
 minerExecs=["paracross"]    #配置挖矿合约
 
 [mver.consensus]
@@ -127,7 +127,7 @@ startHeight=1 # TODO 不一样
 #等待打包主链区块时间间隔，单位毫秒
 writeBlockMsec=2000
 #验证账户，验证节点需要配置自己的账户，并且钱包导入对应种子，非验证节点留空
-authAccount="133AfuMYQXRxc45JGUb1jLk1M1W4ka39L1"
+authAccount="12HKLEn6g4FH39yUbHh4EVJWcFo5CXg22d"
 #创世地址额度
 genesisAmount=100000000
 #主链计算blockhash forkheight，需要和主链保持严格一致,不可修改,1是bityuan主链对应高度， ycc或其他按实际修改
@@ -190,10 +190,10 @@ enableStat=false
 enableMVCC=false
 
 [exec.sub.relay]
-genesis="133AfuMYQXRxc45JGUb1jLk1M1W4ka39L1" # TODO 不一样
+genesis="12HKLEn6g4FH39yUbHh4EVJWcFo5CXg22d" # TODO 不一样
 
 [exec.sub.manage]
-superManager=["133AfuMYQXRxc45JGUb1jLk1M1W4ka39L1","1E5saiXVb9mW8wcWUUZjsHJPZs5GmdzuSY"]
+superManager=["12HKLEn6g4FH39yUbHh4EVJWcFo5CXg22d"]
 #autonomy执行器名字,空则不开启,使用superManager list
 autonomyExec=""
 
