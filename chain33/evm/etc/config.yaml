@@ -5,19 +5,20 @@ GroupSie: 20
 GrpcTxNum: 400
 DeployerPrivkey: "0x1813e88e2ec3ae44dea06227a118d05ca2b7ba1d90e267d844a60538a6d48fbc"
 DeployerAddr: "1MowztiYG22fzqZEmf9PnwCwpEcLqmmjMz"
-RpcType: 3
+RpcType: 4
 Chain:
-  - "172.16.103.233:8912"
-  - "172.16.103.233:8922"
-  - "172.16.103.233:8932"
-  - "172.16.103.233:8942"
+  - "192.168.101.123:8912"
+  - "192.168.101.123:8922"
+  - "192.168.101.123:8932"
+  - "192.168.101.123:8942"
 ParaName:
   - "user.p.para1."
   - "user.p.para2."
   - "user.p.para3."
   - "user.p.para4."
 ContractAddr:
-  - "199CZAGfUp6T1MPiMF6RWquvtRJ5FFj5q9"
-  - "14yzwh1ENLgu4Y7pyFcJxH1gRQa7rF76tU"
-  - "13Zxa6kPtBiejx5sZVTefJ9NDAqukrrCCu"
-  - "1JqgfjiEzjH4sn2gGjaWx12gboPxBBd1A5"
+  - "1GBg96QdkzDNRR79JeF3VQGo9kALtn8xBK"
+  - "1DEBHKfmzNEhCRsPQLUrfuxfF77j8ovi6S"
+  - "1QDCcx3oJAgG3wCvErUyxZhg4zAzV2XS3f"
+  - "1LNcc4qmZbd3v2MbyzjYx1SwWyp74H6fKk"
+

@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"sync"
+	"time"
+
 	"github.com/33cn/chain33/rpc/grpcclient"
 	chainTypes "github.com/33cn/chain33/types"
 	chainUtil "github.com/33cn/chain33/util"
@@ -12,9 +16,6 @@ import (
 	"gitlab.33.cn/proof/pressure-test/chain33/evm/call"
 	"google.golang.org/grpc"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
-	"sync"
-	"time"
 )
 
 type Job struct {
@@ -45,8 +46,8 @@ type Addr struct {
 var AddressList []Addr
 
 var (
-	//configFile  = flag.String("f", "etc/config.yaml", "the config file")
-	//addressFile = flag.String("a", "etc/address.json", "the address file")
+	// configFile  = flag.String("f", "etc/config.yaml", "the config file")
+	// addressFile = flag.String("a", "etc/address.json", "the address file")
 
 	configFile  = flag.String("f", "/Users/qiangu/gocode/src/gitlab.33.cn/proof/pressure-test/chain33/evm/etc/config.yaml", "the config file")
 	addressFile = flag.String("a", "/Users/qiangu/gocode/src/gitlab.33.cn/proof/pressure-test/chain33/evm/etc/address.json", "the address file")
@@ -71,6 +72,56 @@ func main() {
 	err = InitAddress(*addressFile)
 	if err != nil {
 		fmt.Println("初始化地址失败", err)
+		return
+	}
+	if c.RpcType == 1 {
+
+		jobChain := make(chan *Job, 5000)
+		err = InitJobChain(jobChain, c.ContractAddr[0], c.DeployerPrivkey, c.OperationType, c.Rate)
+		if err != nil {
+			fmt.Println("main InitJobChain err", err)
+			return
+		}
+
+		time.Sleep(3 * time.Second)
+
+		client := call.NewJsonClient(c.Chain[0], c.ParaName[0],
+			c.ContractAddr[0], abi)
+
+		resultChain := make(chan int, 5000)
+
+		start := time.Now().Unix()
+		defer func(start int64) {
+			stop := time.Now().Unix()
+			fmt.Printf("开始发送：%v , 结束发送：%v , 耗时: %v s \n", start, stop, stop-start)
+		}(start)
+		time.Sleep(1 * time.Second)
+		CreatePool(c.PoolSize, jobChain, resultChain, client, c.DeployerAddr, c.DeployerPrivkey)
+
+		resultNum := 0
+		successNum := 0
+		failNum := 0
+		defer func() {
+			fmt.Println("发行成功：", successNum, "发行失败：", failNum)
+		}()
+
+		for status := range resultChain {
+			fmt.Println("resultChain status", status)
+			if status == call.Success {
+				successNum++
+			} else {
+				failNum++
+			}
+
+			resultNum++
+			tokenRate := 1
+			if c.OperationType == 1 || c.OperationType == 3 {
+				tokenRate = c.Rate
+			}
+			if resultNum >= len(AddressList)*tokenRate {
+				return
+			}
+		}
 		return
 	}
 
@@ -129,7 +180,10 @@ func main() {
 		contractAddrLen := len(c.ContractAddr)
 
 		nftId := 0
-		r := c.Rate/len(c.ContractAddr) + 1
+		r := c.Rate / len(c.ContractAddr)
+		if c.Rate%len(c.ContractAddr) != 0 {
+			r++
+		}
 		job3 := make([][][]*chainTypes.Transaction, 0, len(c.ContractAddr))
 
 		poolSize := 6
@@ -175,57 +229,58 @@ func main() {
 		}
 
 		wg.Wait()
-		time.Sleep(1 * time.Second)
 		sendStop := time.Now()
-		fmt.Println("交易发送完毕，发送结束时间", sendStop.String(), "耗时：", sendStop.Unix() - createStop.Unix())
+		fmt.Println("交易发送完毕，发送结束时间", sendStop.String(), "耗时：", sendStop.Unix()-createStop.Unix())
+		time.Sleep(1000 * time.Second)
 		return
 	}
 
-	jobChain := make(chan *Job, 5000)
-	err = InitJobChain(jobChain, c.ContractAddr[0], c.DeployerPrivkey, c.OperationType, c.Rate)
-	if err != nil {
-		fmt.Println("main InitJobChain err", err)
+	if c.RpcType == 5 {
+		start := time.Now()
+
+		contractAddrLen := len(c.ContractAddr)
+
+		nftId := 0
+		r := c.Rate / contractAddrLen
+		if c.Rate%contractAddrLen != 0 {
+			r++
+		}
+
+		poolSize := 6
+		wg := &sync.WaitGroup{}
+		wg.Add(poolSize * contractAddrLen)
+
+		groupChains := make([]chan *TxGroupParams, 0, contractAddrLen)
+		resultChains := make([]chan []*chainTypes.Transaction, 0, contractAddrLen)
+
+		for k := 0; k < len(c.ContractAddr); k++ {
+
+			groupChain := make(chan *TxGroupParams, 5000)
+			groupChains = append(groupChains, groupChain)
+			resultChain := make(chan []*chainTypes.Transaction, 5000)
+			resultChains = append(resultChains, resultChain)
+
+			go PollCreateTxGroupTxs(poolSize, c.ContractAddr[k], c.ParaName[k], c.DeployerPrivkey, groupChains[k], resultChains[k], c.GrpcTxNum, wg)
+
+			go InitGrpcTxGroupChain(nftId, c.OperationType, r, c.GroupSie, groupChains[k])
+
+			nftId += len(AddressList) * r
+
+		}
+
+		time.Sleep(10 * time.Second)
+		fmt.Println("开始发送交易")
+		wgSend := &sync.WaitGroup{}
+		wgSend.Add(contractAddrLen)
+		for h := 0; h < contractAddrLen; h++ {
+			go SendChainWaitGroup(c.Chain[h], resultChains[h], wg)
+		}
+
+		wgSend.Wait()
+		sendStop := time.Now()
+		fmt.Println("交易发送完毕，发送结束时间", sendStop.String(), "耗时：", sendStop.Unix()-start.Unix())
+		time.Sleep(1000 * time.Second)
 		return
-	}
-
-	time.Sleep(3 * time.Second)
-
-	client := call.NewJsonClient(c.Chain[0], c.ParaName[0],
-		c.ContractAddr[0], abi)
-
-	resultChain := make(chan int, 5000)
-
-	start := time.Now().Unix()
-	defer func(start int64) {
-		stop := time.Now().Unix()
-		fmt.Printf("开始发送：%v , 结束发送：%v , 耗时: %v s \n", start, stop, stop-start)
-	}(start)
-	time.Sleep(1 * time.Second)
-	CreatePool(c.PoolSize, jobChain, resultChain, client, c.DeployerAddr, c.DeployerPrivkey)
-
-	resultNum := 0
-	successNum := 0
-	failNum := 0
-	defer func() {
-		fmt.Println("发行成功：", successNum, "发行失败：", failNum)
-	}()
-
-	for status := range resultChain {
-		fmt.Println("resultChain status", status)
-		if status == call.Success {
-			successNum++
-		} else {
-			failNum++
-		}
-
-		resultNum++
-		tokenRate := 1
-		if c.OperationType == 1 || c.OperationType == 3 {
-			tokenRate = c.Rate
-		}
-		if resultNum >= len(AddressList)*tokenRate {
-			return
-		}
 	}
 }
 
@@ -387,9 +442,7 @@ func InitGrpcJobChain(grpcJobChain []chan *chainTypes.Transaction, contractAddr,
 
 			}
 		}
-
 	}(grpcJobChain, contractAddr, paraName, deployerPrivkey, operationType, rate)
-
 }
 
 type TxGroupParams struct {
@@ -416,21 +469,55 @@ func PollCreateTxGroup(poolSize int, contractAddr, paraName, deployerPrivkey str
 				resultChain <- tx
 			}
 			wg.Done()
+			fmt.Println("PollCreateTxGroup over")
+		}(c, groupChain, wg)
+	}
+}
+
+func PollCreateTxGroupTxs(poolSize int, contractAddr, paraName, deployerPrivkey string, groupChain chan *TxGroupParams, resultChain chan []*chainTypes.Transaction, grpcTxNum int, wg *sync.WaitGroup) {
+	c := &call.CallContract{
+		ContractAddr: contractAddr,
+		ParaName:     paraName,
+		Abi:          abi,
+		DeployerPri:  chainUtil.HexToPrivkey(deployerPrivkey),
+	}
+
+	for i := 0; i < poolSize; i++ {
+		go func(c *call.CallContract, groupChain chan *TxGroupParams, wg *sync.WaitGroup) {
+			txs := make([]*chainTypes.Transaction, 0, grpcTxNum)
+			for param := range groupChain {
+				tx, err := c.LocalCreateYCCEVMGroupTx(param.Params, param.Privkeys)
+				if err != nil {
+					fmt.Println("c.LocalCreateYCCEVMGroupTx ,err: ", err)
+					continue
+				}
+				txs = append(txs, tx)
+				if len(txs) >= grpcTxNum {
+					resultChain <- txs
+					txs = make([]*chainTypes.Transaction, 0, grpcTxNum)
+				}
+			}
+
+			if len(txs) >= 0 {
+				resultChain <- txs
+			}
+
+			wg.Done()
 		}(c, groupChain, wg)
 	}
 }
 
 func ChainToJobList(resultChain chan *chainTypes.Transaction, jobLists [][]*chainTypes.Transaction) {
 	groupCount := 0
+	jobListsLen := len(jobLists)
 	for tx := range resultChain {
 		groupCount++
-		y := groupCount % len(jobLists)
+		y := groupCount % jobListsLen
 		jobLists[y] = append(jobLists[y], tx)
 	}
 }
 
-func InitGrpcTxGroupChain(nftId int, operationType, rate, groupSize int, groupChain chan *TxGroupParams) {
-
+func InitGrpcTxGroupChain(nftId, operationType, rate, groupSize int, groupChain chan *TxGroupParams) {
 	txCount := 0
 	params := make([]string, 0, groupSize)
 	privkeys := make([]string, 0, groupSize)
@@ -456,6 +543,30 @@ func InitGrpcTxGroupChain(nftId int, operationType, rate, groupSize int, groupCh
 			}
 		}
 		close(groupChain)
+	} else if operationType == 3 {
+		addrLen := len(AddressList)
+		for i := 0; i < addrLen; i++ {
+			for j := 0; j < rate; j++ {
+				nftId++
+				txCount++
+				params = append(params, fmt.Sprintf("transfer(%q, %q, %v)", AddressList[i].Address, AddressList[addrLen-1-i].Address, nftId))
+				privkeys = append(privkeys, AddressList[i].PrivKey)
+
+				if txCount >= groupSize {
+					param := &TxGroupParams{
+						Params:   params,
+						Privkeys: privkeys,
+					}
+					groupChain <- param
+
+					txCount = 0
+					params = make([]string, 0, groupSize)
+				}
+			}
+		}
+		fmt.Println("InitGrpcTxGroupChain over1")
+		close(groupChain)
+		fmt.Println("InitGrpcTxGroupChain over2")
 	}
 }
 
@@ -574,8 +685,8 @@ func InitGrpcJobList(nftId int, jobLists [][]*chainTypes.Transaction, contractAd
 	return nftId
 }
 
-func SendListWaitGroup(endpoint string, jobList []*chainTypes.Transaction, grpcTxNum int, wg *sync.WaitGroup) {
-	maxMsgSize := 20 * 1024 * 1024 //最大传输数据 最大区块大小
+func SendChainWaitGroup(endpoint string, jobChan chan []*chainTypes.Transaction, wg *sync.WaitGroup) {
+	maxMsgSize := 20 * 1024 * 1024 // 最大传输数据 最大区块大小
 	diaOpt := grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize),
 		grpc.MaxCallSendMsgSize(maxMsgSize))
 
@@ -584,10 +695,54 @@ func SendListWaitGroup(endpoint string, jobList []*chainTypes.Transaction, grpcT
 		fmt.Println("grpcclient.NewMultipleURL err:", err)
 		return
 	}
+
+	client := chainTypes.NewChain33Client(conn)
+
+	for i := 0; i < 100; i++ {
+		txs := <-jobChan
+		replys, err := client.SendTransactions(context.Background(), &chainTypes.Transactions{Txs: txs})
+		if err != nil {
+			fmt.Println("SendTransaction err:", err)
+			continue
+		}
+		fmt.Println("SendTransactions replys, isOK: ", replys.ReplyList[0].IsOk)
+	}
+
+	for txs := range jobChan {
+		time.Sleep(100 * time.Millisecond)
+		replys, err := client.SendTransactions(context.Background(), &chainTypes.Transactions{Txs: txs})
+		if err != nil {
+			fmt.Println("SendTransaction err:", err)
+			continue
+		}
+		fmt.Println("SendTransactions replys, isOK: ", replys.ReplyList[0].IsOk)
+	}
+
+	wg.Done()
+}
+
+func SendListWaitGroup(endpoint string, jobList []*chainTypes.Transaction, grpcTxNum int, wg *sync.WaitGroup) {
+	maxMsgSize := 20 * 1024 * 1024 // 最大传输数据 最大区块大小
+	diaOpt := grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize),
+		grpc.MaxCallSendMsgSize(maxMsgSize))
+
+	conn, err := grpc.Dial(grpcclient.NewMultipleURL(endpoint), grpc.WithInsecure(), diaOpt)
+	if err != nil {
+		fmt.Println("grpcclient.NewMultipleURL err:", err)
+		return
+	}
+
+	//go func(client chainTypes.Chain33Client, txs []*chainTypes.Transaction) {
+	//	replys, err := client.SendTransactions(context.Background(), &chainTypes.Transactions{Txs: txs})
+	//
+	//	if err != nil {
+	//		fmt.Println("SendTransaction err:", err)
+	//	}
+	//	fmt.Println("SendTransactions replys, isOK: ", replys.ReplyList[0].IsOk)
+	//}(client, jobList[i : i+grpcTxNum])
 	client := chainTypes.NewChain33Client(conn)
 	for i := 0; i < len(jobList); i += grpcTxNum {
 		replys, err := client.SendTransactions(context.Background(), &chainTypes.Transactions{Txs: jobList[i : i+grpcTxNum]})
-
 		if err != nil {
 			fmt.Println("SendTransaction err:", err)
 		}
@@ -597,7 +752,7 @@ func SendListWaitGroup(endpoint string, jobList []*chainTypes.Transaction, grpcT
 }
 
 func SendList(endpoint string, jobList []*chainTypes.Transaction, grpcTxNum int) {
-	maxMsgSize := 20 * 1024 * 1024 //最大传输数据 最大区块大小
+	maxMsgSize := 20 * 1024 * 1024 // 最大传输数据 最大区块大小
 	diaOpt := grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize),
 		grpc.MaxCallSendMsgSize(maxMsgSize))
 
@@ -609,7 +764,6 @@ func SendList(endpoint string, jobList []*chainTypes.Transaction, grpcTxNum int)
 	client := chainTypes.NewChain33Client(conn)
 	for i := 0; i < len(jobList); i += grpcTxNum {
 		replys, err := client.SendTransactions(context.Background(), &chainTypes.Transactions{Txs: jobList[i : i+grpcTxNum]})
-
 		if err != nil {
 			fmt.Println("SendTransaction err:", err)
 		}
@@ -621,7 +775,7 @@ func Send(poolSize int, endpoint string, grpcJobChain chan *chainTypes.Transacti
 	grpc := txpool.CreateTxPool(&txpool.Cfg{
 		Chs: txpool.Chs{
 			Size: poolSize,
-			Len:  100, //OpenRetry=true 会堵塞当前ch 这个len只在 OpenRetry=false有效
+			Len:  100, // OpenRetry=true 会堵塞当前ch 这个len只在 OpenRetry=false有效
 		},
 		GrpcAddrs: []string{endpoint},
 	})
@@ -636,7 +790,6 @@ func Send(poolSize int, endpoint string, grpcJobChain chan *chainTypes.Transacti
 			OpenRetry: true,
 		})
 	}
-
 }
 
 const abi = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"account","type":"address"},{"indexed":true,"internalType":"address","name":"operator","type":"address"},{"indexed":false,"internalType":"bool","name":"approved","type":"bool"}],"name":"ApprovalForAll","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"operator","type":"address"},{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":true,"internalType":"address","name":"to","type":"address"},{"indexed":false,"internalType":"uint256[]","name":"ids","type":"uint256[]"},{"indexed":false,"internalType":"uint256[]","name":"values","type":"uint256[]"}],"name":"TransferBatch","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"operator","type":"address"},{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":true,"internalType":"address","name":"to","type":"address"},{"indexed":false,"internalType":"uint256","name":"id","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"}],"name":"TransferSingle","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"string","name":"value","type":"string"},{"indexed":true,"internalType":"uint256","name":"id","type":"uint256"}],"name":"URI","type":"event"},{"inputs":[{"internalType":"address","name":"account","type":"address"},{"internalType":"uint256","name":"id","type":"uint256"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address[]","name":"accounts","type":"address[]"},{"internalType":"uint256[]","name":"ids","type":"uint256[]"}],"name":"balanceOfBatch","outputs":[{"internalType":"uint256[]","name":"","type":"uint256[]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"owner","type":"address"},{"internalType":"uint256[]","name":"ids","type":"uint256[]"}],"name":"batchMint","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"from","type":"address"},{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256[]","name":"ids","type":"uint256[]"}],"name":"batchTransfer","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"getSuccessNum","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"account","type":"address"},{"internalType":"address","name":"operator","type":"address"}],"name":"isApprovedForAll","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"id","type":"uint256"}],"name":"mint","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"from","type":"address"},{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256[]","name":"ids","type":"uint256[]"},{"internalType":"uint256[]","name":"amounts","type":"uint256[]"},{"internalType":"bytes","name":"data","type":"bytes"}],"name":"safeBatchTransferFrom","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"from","type":"address"},{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"id","type":"uint256"},{"internalType":"uint256","name":"amount","type":"uint256"},{"internalType":"bytes","name":"data","type":"bytes"}],"name":"safeTransferFrom","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"operator","type":"address"},{"internalType":"bool","name":"approved","type":"bool"}],"name":"setApprovalForAll","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"successNum","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes4","name":"interfaceId","type":"bytes4"}],"name":"supportsInterface","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"from","type":"address"},{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"id","type":"uint256"}],"name":"transfer","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],"name":"uri","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"}]`

@@ -1,9 +1,10 @@
 package call
 
 import (
-	"gitlab.33.cn/proof/backend-micro/pkg/evm"
 	"fmt"
 	"strconv"
+
+	"gitlab.33.cn/proof/backend-micro/pkg/evm"
 
 	chainCommon "github.com/33cn/chain33/common"
 	chainTypes "github.com/33cn/chain33/types"
@@ -39,13 +40,13 @@ type JsonClient struct {
 	Cli      *evm.Client
 }
 
-func NewJsonClient(endpoint, paraName, addr, abi string ) *JsonClient {
+func NewJsonClient(endpoint, paraName, addr, abi string) *JsonClient {
 	client := JsonClient{
 		Endpoint: endpoint,
-		ParaName:paraName,
-		Addr:addr,
-		Abi: abi,
-		Cli: evm.NewClient(paraName, endpoint),
+		ParaName: paraName,
+		Addr:     addr,
+		Abi:      abi,
+		Cli:      evm.NewClient(paraName, endpoint),
 	}
 	return &client
 }
@@ -126,19 +127,20 @@ func (c *JsonClient) SendContractGroup(parameter, privkey, deployerAddr, deploye
 
 	// 2)
 	// 估算部署交易或者调用交易需要的 gas
-	resp2, err := c.Cli.EstimateGas(&evm.EstimateGasReq{
-		Tx:   resp1.Result,
-		From: deployerAddr,
-	})
-	if err != nil {
-		fmt.Printf("func EstimateGasReq error: %s\n", err.Error())
-		return Fail, ""
-	}
+	//resp2, err := c.Cli.EstimateGas(&evm.EstimateGasReq{
+	//	Tx:   resp1.Result,
+	//	From: deployerAddr,
+	//})
+	//if err != nil {
+	//	fmt.Printf("func EstimateGasReq error: %s\n", err.Error())
+	//	return Fail, ""
+	//}
+	//
+	//gas, _ := strconv.Atoi(resp2.Gas)
+	//
+	//t1.Fee = int64(gas * 11)
 
-	gas, _ := strconv.Atoi(resp2.Gas)
-
-	t1.Fee = int64(gas * 11)
-
+	t1.Fee = 2000000
 	txGroup, err := c.Cli.CreateWithholdTxGroup(c.ParaName, t1)
 	if err != nil {
 		fmt.Printf("func EstimateGasReq error: %s\n", err.Error())
