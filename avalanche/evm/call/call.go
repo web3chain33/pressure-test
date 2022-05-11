@@ -10,16 +10,16 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	l "github.com/33cn/chain33/common/log/log15"
+	"github.com/chendehai/pressure-test/eth/solidity/goods"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"gitlab.33.cn/proof/pressure-test/eth/solidity/goods"
 )
 
 var log = l.New("module", "call")
 
-var keys2 = []string{
+var keys9652 = []string{
 	"3dcc4ae1d4b660354423cf36833d536dfda77f59f098574d371eb198e197f1fd",
 	"a03450617e834879192b67c7fd88e092097f83c8e0fcc2b158b3b3ae062e7b3c",
 	"abcb0a1a1d8767007d89aefa739a3b7f2761cff4ced1c1b5c6a6155176d12e42",
@@ -129,7 +129,7 @@ var keys9672 = []string{
 	"d8819a89a666547feb3c82ae137a2e63d81bb982bdf206f0f89258fbc68f653b",
 }
 
-var keys = keys9672
+var keys = keys9652
 
 var AccountOpts = InitOpts(keys)
 
@@ -191,6 +191,9 @@ func PollSend(poolSize, nftStep, operationType int, chainAddr, contractAddr stri
 		case 3:
 			y := i % len(AccountOpts)
 			go goodsTransfer(nftId, nftId+nftStep, chainAddr, contractAddr, AccountOpts[y], wg)
+		case 5:
+			y := i % len(AccountOpts)
+			go avaxTransfer(chainAddr, AccountOpts[y], wg)
 		default:
 			fmt.Println("error operationType:", operationType)
 		}
@@ -344,6 +347,52 @@ func goodsTransfer(nftId, nftMax int, chainAddr, contractAddr string, opt *bind.
 			continue
 		}
 		log.Info("transfer_success ", "time", time.Now().String(), "txHash", mintTx.Hash())
+	}
+	wg.Done()
+}
+
+func avaxTransfer(chainAddr string, opt *bind.TransactOpts, wg *sync.WaitGroup) {
+	conn, err := ethclient.Dial(chainAddr)
+	if err != nil {
+		fmt.Printf("Failed to connect to the Ethereum client: %v", err)
+		return
+	}
+
+	privateKey, err := crypto.HexToECDSA("56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027")
+	if err != nil {
+		fmt.Printf("Failed to crypto.HexToECDSA: %v", err)
+		return
+	}
+
+	toAddr := crypto.PubkeyToAddress(privateKey.PublicKey)
+
+	no, err := conn.PendingNonceAt(context.Background(), opt.From)
+	log.Info("bind.TransactOpts", "nonce", no, "address", opt.From.String())
+	nonce := int64(no) - 1
+
+	signedTx := &types.Transaction{}
+	for i := 0; i < 1000; i++ {
+		nonce++
+		rawTx := types.NewTx(&types.LegacyTx{
+			To:       &toAddr,
+			Nonce:    uint64(nonce),
+			GasPrice: big.NewInt(27000000000),
+			Gas:      22000,
+			Value:    big.NewInt(100),
+			Data:     nil,
+		})
+
+		signedTx, err = opt.Signer(opt.From, rawTx)
+		if err != nil {
+			fmt.Printf("Failed to signedTx: %v \n", err)
+			continue
+		}
+		err = conn.SendTransaction(context.Background(), signedTx)
+		if err != nil {
+			fmt.Printf("Failed to SendTransaction: %v \n", err)
+			continue
+		}
+		log.Info("mint_success ", "nonce", nonce, "txHash", signedTx.Hash())
 	}
 	wg.Done()
 }

@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	call2 "github.com/chendehai/pressure-test/avalanche/evm/call"
+
 	l "github.com/33cn/chain33/common/log/log15"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -18,7 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"gitlab.33.cn/proof/pressure-test/avax/evm/call"
 )
 
 var log15 = l.New("module", "main")
@@ -30,7 +31,7 @@ const (
 
 var (
 	chainID   = big.NewInt(43112)
-	chainAddr = "http://192.168.11.123:9672/ext/bc/C/rpc"
+	chainAddr = "http://192.168.11.123:9652/ext/bc/C/rpc"
 	poolSize  = 30
 	rate      = 100
 )
@@ -82,13 +83,13 @@ func main() {
 	wg.Add(poolSize)
 
 	sendStart := time.Now()
-	call.PollSend(poolSize, rate, 1, chainAddr, address.String(), wg)
+	call2.PollSend(poolSize, rate, 1, chainAddr, address.String(), wg)
 
 	wg.Wait()
 	sendStop := time.Now()
 
 	log15.Info("发送交易结束", "开始时间", sendStart.String(), "结束时间", sendStop.String(), "耗时", sendStop.Unix()-sendStart.Unix())
-	call.GoodsSuccessNum(chainAddr, address.String(), &bind.CallOpts{
+	call2.GoodsSuccessNum(chainAddr, address.String(), &bind.CallOpts{
 		Pending: true,
 		From:    defaultOpts.From,
 		Context: context.Background(),

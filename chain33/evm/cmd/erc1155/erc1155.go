@@ -12,8 +12,7 @@ import (
 	"github.com/33cn/chain33/rpc/grpcclient"
 	chainTypes "github.com/33cn/chain33/types"
 	chainUtil "github.com/33cn/chain33/util"
-	"gitlab.33.cn/proof/backend-micro/pkg/tx/txpool"
-	"gitlab.33.cn/proof/pressure-test/chain33/evm/call"
+	"github.com/chendehai/pressure-test/chain33/evm/call"
 	"google.golang.org/grpc"
 	"gopkg.in/yaml.v2"
 )
@@ -46,11 +45,8 @@ type Addr struct {
 var AddressList []Addr
 
 var (
-	// configFile  = flag.String("f", "etc/config.yaml", "the config file")
-	// addressFile = flag.String("a", "etc/address.json", "the address file")
-
-	configFile  = flag.String("f", "/Users/qiangu/gocode/src/gitlab.33.cn/proof/pressure-test/chain33/evm/etc/config.yaml", "the config file")
-	addressFile = flag.String("a", "/Users/qiangu/gocode/src/gitlab.33.cn/proof/pressure-test/chain33/evm/etc/address.json", "the address file")
+	configFile  = flag.String("f", "etc/config.yaml", "the config file")
+	addressFile = flag.String("a", "etc/address.json", "the address file")
 )
 
 func main() {
@@ -72,56 +68,6 @@ func main() {
 	err = InitAddress(*addressFile)
 	if err != nil {
 		fmt.Println("初始化地址失败", err)
-		return
-	}
-	if c.RpcType == 1 {
-
-		jobChain := make(chan *Job, 5000)
-		err = InitJobChain(jobChain, c.ContractAddr[0], c.DeployerPrivkey, c.OperationType, c.Rate)
-		if err != nil {
-			fmt.Println("main InitJobChain err", err)
-			return
-		}
-
-		time.Sleep(3 * time.Second)
-
-		client := call.NewJsonClient(c.Chain[0], c.ParaName[0],
-			c.ContractAddr[0], abi)
-
-		resultChain := make(chan int, 5000)
-
-		start := time.Now().Unix()
-		defer func(start int64) {
-			stop := time.Now().Unix()
-			fmt.Printf("开始发送：%v , 结束发送：%v , 耗时: %v s \n", start, stop, stop-start)
-		}(start)
-		time.Sleep(1 * time.Second)
-		CreatePool(c.PoolSize, jobChain, resultChain, client, c.DeployerAddr, c.DeployerPrivkey)
-
-		resultNum := 0
-		successNum := 0
-		failNum := 0
-		defer func() {
-			fmt.Println("发行成功：", successNum, "发行失败：", failNum)
-		}()
-
-		for status := range resultChain {
-			fmt.Println("resultChain status", status)
-			if status == call.Success {
-				successNum++
-			} else {
-				failNum++
-			}
-
-			resultNum++
-			tokenRate := 1
-			if c.OperationType == 1 || c.OperationType == 3 {
-				tokenRate = c.Rate
-			}
-			if resultNum >= len(AddressList)*tokenRate {
-				return
-			}
-		}
 		return
 	}
 
@@ -170,7 +116,7 @@ func main() {
 			}
 		}
 
-		time.Sleep(20 * time.Minute)
+		time.Sleep(10 * time.Minute)
 		return
 	}
 
@@ -231,7 +177,7 @@ func main() {
 		wg.Wait()
 		sendStop := time.Now()
 		fmt.Println("交易发送完毕，发送结束时间", sendStop.String(), "耗时：", sendStop.Unix()-createStop.Unix())
-		time.Sleep(1000 * time.Second)
+		time.Sleep(100 * time.Second)
 		return
 	}
 
@@ -279,7 +225,7 @@ func main() {
 		wgSend.Wait()
 		sendStop := time.Now()
 		fmt.Println("交易发送完毕，发送结束时间", sendStop.String(), "耗时：", sendStop.Unix()-start.Unix())
-		time.Sleep(1000 * time.Second)
+		time.Sleep(100 * time.Second)
 		return
 	}
 }
@@ -296,81 +242,6 @@ func InitAddress(addressFile string) error {
 		return err
 	}
 	return nil
-}
-
-func InitJobChain(jobChain chan *Job, contractAddr, deployerPrivkey string, operationType, rate int) error {
-	go func(jobChain chan *Job, contractAddr, privkey string) {
-		nftId := 0
-		if operationType == 1 {
-			for i := 0; i < len(AddressList); i++ {
-				for j := 0; j < rate; j++ {
-					nftId++
-					job := &Job{
-						Parameter:    fmt.Sprintf("mint(%q, %v)", AddressList[i].Address, nftId),
-						Privkey:      privkey,
-						ContractAddr: contractAddr,
-					}
-					jobChain <- job
-				}
-			}
-		} else if operationType == 2 {
-			for i := 0; i < len(AddressList); i++ {
-				ids := []int{nftId + 1, nftId + 2, nftId + 3, nftId + 4, nftId + 5}
-				nftId += 5
-
-				idsByte, _ := json.Marshal(ids)
-				job := &Job{
-					Parameter:    fmt.Sprintf("batchMint(%q, %v)", AddressList[i].Address, string(idsByte)),
-					Privkey:      privkey,
-					ContractAddr: contractAddr,
-				}
-				jobChain <- job
-			}
-		} else if operationType == 3 {
-			addrLen := len(AddressList)
-			for i := 0; i < addrLen; i++ {
-				for j := 0; j < rate; j++ {
-					nftId++
-					job := &Job{
-						Parameter:    fmt.Sprintf("transfer(%q, %q, %v)", AddressList[i].Address, AddressList[addrLen-1-i].Address, nftId),
-						Privkey:      AddressList[i].PrivKey,
-						ContractAddr: contractAddr,
-					}
-					jobChain <- job
-				}
-			}
-		} else if operationType == 4 {
-			addrLen := len(AddressList)
-			for i := 0; i < addrLen; i++ {
-				ids := []int{nftId + 1, nftId + 2, nftId + 3, nftId + 4, nftId + 5}
-				nftId += 5
-
-				idsByte, _ := json.Marshal(ids)
-				job := &Job{
-					Parameter:    fmt.Sprintf("batchTransfer(%q, %q, %v)", AddressList[i].Address, AddressList[addrLen-1-i].Address, string(idsByte)),
-					Privkey:      AddressList[i].PrivKey,
-					ContractAddr: contractAddr,
-				}
-				jobChain <- job
-			}
-		}
-	}(jobChain, contractAddr, deployerPrivkey)
-
-	return nil
-}
-
-func CreatePool(num int, jobChan chan *Job, resultChain chan int, cli *call.JsonClient, deployerAddr, deployerPrivkey string) {
-	// 根据开协程个数，去跑运行
-	for i := 0; i < num; i++ {
-		go func(jobChan chan *Job, cli *call.JsonClient) {
-			// cli := NewClient(c.Chain.Endpoint, c.Chain.ParaName, c.Contract.Addr, c.Contract.Abi)
-			// 执行运算
-			for job := range jobChan {
-				status, _ := cli.SendContractGroup(job.Parameter, job.Privkey, deployerAddr, deployerPrivkey)
-				resultChain <- status
-			}
-		}(jobChan, cli)
-	}
 }
 
 func InitGrpcJobChain(grpcJobChain []chan *chainTypes.Transaction, contractAddr, paraName, deployerPrivkey string, operationType, rate int) {
@@ -772,23 +643,24 @@ func SendList(endpoint string, jobList []*chainTypes.Transaction, grpcTxNum int)
 }
 
 func Send(poolSize int, endpoint string, grpcJobChain chan *chainTypes.Transaction) {
-	grpc := txpool.CreateTxPool(&txpool.Cfg{
-		Chs: txpool.Chs{
-			Size: poolSize,
-			Len:  100, // OpenRetry=true 会堵塞当前ch 这个len只在 OpenRetry=false有效
-		},
-		GrpcAddrs: []string{endpoint},
-	})
+	for i := 0; i < poolSize; i++ {
+		go func(endpoint string, grpcJobChain chan *chainTypes.Transaction) {
+			conn, err := grpc.Dial(grpcclient.NewMultipleURL(endpoint), grpc.WithInsecure())
+			if err != nil {
+				fmt.Println("grpcclient.NewMultipleURL err:", err)
+				return
+			}
+			client := chainTypes.NewChain33Client(conn)
 
-	id := 0
-	for tx := range grpcJobChain {
-		id++
-		grpc.SendTx(&txpool.TxMsg{
-			Id:        int64(id),
-			Time:      time.Now().Unix(),
-			Tx:        tx,
-			OpenRetry: true,
-		})
+			for tx := range grpcJobChain {
+				reply, err := client.SendTransaction(context.Background(), tx)
+				if err != nil {
+					fmt.Println("SendTransaction err:", err)
+					continue
+				}
+				fmt.Println("SendTransactions replys, isOK: ", reply.IsOk)
+			}
+		}(endpoint, grpcJobChain)
 	}
 }
 

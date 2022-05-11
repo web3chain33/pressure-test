@@ -1,4 +1,4 @@
-package main
+package util
 
 import (
 	"fmt"
@@ -52,12 +52,12 @@ func TestCallContract_LocalCreateYCCEVMTx(t *testing.T) {
 				ParaName:     tt.fields.ParaName,
 				Abi:          tt.fields.Abi,
 			}
-			got, err := c.LocalCreateYCCEVMTx(tt.args.parameter)
+			got, err := c.LocalCreateUnSignYCCEVMTx(tt.args.parameter)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("LocalCreateYCCEVMTx() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			t.Logf("result:%v",got.JSON())
+			t.Logf("result:%v", got.JSON())
 		})
 	}
 }
