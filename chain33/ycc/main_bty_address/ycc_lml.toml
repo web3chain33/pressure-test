@@ -51,9 +51,9 @@ maxTxFeeRate = 10000000
 maxTxFee = 1000000000
 disableExecCheck = true
 isLevelFee = false
-maxTxNumPerAccount = 102400
+maxTxNumPerAccount = 1024000
 name = "timeline"
-poolCacheSize = 102400
+poolCacheSize = 1024000
 
 [p2p]
 dbCache = 4
@@ -75,7 +75,7 @@ useGithub = false
 channel = 7
 port = 13601
 seeds = [
-# "/ip4/192.168.11.123/tcp/13601/p2p/16Uiu2HAm2MUjvxpV48uTUkmkXyTQSJ9pUDzgFhosXHFPNLJPDwBx",
+# "/ip4/172.16.103.39/tcp/13601/p2p/16Uiu2HAm1gjFv3hyxYRY1sBripFopuSojAnjinfoCUDMbWm1EHtN",
 ]
 
 #dht 版本还不稳定，暂时限定较小的连接数
@@ -109,7 +109,7 @@ whitelist = ["*"]
 
 [consensus.sub.pos33]
 bootPeers = [
-#"/ip4/192.168.11.123/tcp/10901/p2p/16Uiu2HAmErmNhtS145Lv5fe9FWrHSrNjPkp1eMLeLgi6t3sdr1of",
+#"/ip4/172.16.103.39/tcp/10901/p2p/16Uiu2HAmErmNhtS145Lv5fe9FWrHSrNjPkp1eMLeLgi6t3sdr1of",
 ]
 listenPort = 10901
 onlyVoter = false
@@ -118,11 +118,11 @@ onlyVoter = false
 [mver.consensus]
 addWalletTx = false
 fundKeyAddr = "15m3SZWnMFB9yhUfn1h5miiZbPp6bEvyQt"
-maxTxNumber = 10000
+maxTxNumber = 50000
 powLimitBits = "0x1f00ffff"
 
 [mver.consensus.ForkChainParamV1]
-maxTxNumber = 10000
+maxTxNumber = 50000
 
 [store]
 # 联盟链推荐使用kvmvcc
