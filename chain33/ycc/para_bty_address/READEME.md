@@ -34,7 +34,7 @@ ycc.go里修改fork.sub.paracross，ForkParacrossCommitTx=1、ForkLoopCheckCommi
 
 需要主链节点的代码配置修改过，修改内容参考上面的1.搭建YCC的单节点主链，否则需要等到主链高度达到代码配置里的高度后平行链才能进行共识
 
-拉取后用make build指令编译chain33和chain33-cli可执行文件，改名为ycc-para1和ycc-cli, 拷贝到服务器
+拉取后用make build指令编译chain33和chain33-cli可执行文件，改名为ycc和ycc-cli, 拷贝到服务器
 
 单独测试环境的平行链需要使用plugin的版本进行编译，配置需要跟主链的配置对应上，修改plugin里的配置文件consensus.sub.para，consensus.sub.para需要比主链的ForkParacrossCommitTx大，也就是大于等于1，mainLoopCheckCommitTxDoneForkHeight需要比主链的ForkLoopCheckCommitTxDone大，也是大于等于1，startHeight=1，mainBlockHashForkHeight和主链的ForkBlockHash一致
 
@@ -44,7 +44,7 @@ ycc.go里修改fork.sub.paracross，ForkParacrossCommitTx=1、ForkLoopCheckCommi
 
 切换到服务器对应目录
 
-执行 make run 指令启动ycc.para1
+执行 make run 指令启动ycc
 
 执行 make init 指令导入钱包种子，挖矿私钥，解锁钱包
 
