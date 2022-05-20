@@ -3,7 +3,7 @@ YCC的ETH地址版本配置和脚本
 代码仓库
 https://github.com/33cn/plugin/commits/master 7369d842ae803f2c5e35a79cc559ea58d12cd697
 
-拉取后用make build指令编译chain33和chain33-cli可执行文件，改名为ycc-para1和ycc-cli, 拷贝到服务器
+拉取后用make build指令编译chain33和chain33-cli可执行文件，改名为ycc和ycc-cli, 拷贝到服务器
 
 单独测试环境的平行链需要使用plugin的版本进行编译，配置需要跟主链的配置对应上，修改plugin里的配置文件consensus.sub.para，consensus.sub.para需要比主链的ForkParacrossCommitTx大，也就是大于等于1，mainLoopCheckCommitTxDoneForkHeight需要比主链的ForkLoopCheckCommitTxDone大，也是大于等于1，startHeight=1，mainBlockHashForkHeight和主链的ForkBlockHash一致
 
@@ -13,7 +13,7 @@ https://github.com/33cn/plugin/commits/master 7369d842ae803f2c5e35a79cc559ea58d1
 
 切换到服务器对应目录
 
-执行 make run 指令启动ycc.para1.
+执行 make run 指令启动ycc
 
 执行 make init 指令导入钱包种子，挖矿私钥，解锁钱包
 

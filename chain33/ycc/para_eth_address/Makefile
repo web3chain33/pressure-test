@@ -1,13 +1,13 @@
-title:=ycc.para1.
+bin:=ycc
 http_port:="http://127.0.0.1:8921"
 
 run:
 	@echo "ycc para starting..."
-	@nohup ./$(title) -f $(title)toml > /dev/null 2>&1 &
+	@nohup ./$(bin) -f $(bin).toml > /dev/null 2>&1 &
 	@echo "done"
 
 show:
-	@./ycc-para2 -f ycc.para1.toml
+	@./$(bin) -f $(bin).toml
 
 stop:
 	@./ycc-cli --rpc_laddr=$(http_port) close
