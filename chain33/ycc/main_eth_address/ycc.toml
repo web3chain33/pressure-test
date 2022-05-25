@@ -54,6 +54,7 @@ dbPath = "datadir/kvmvcc"
 
 [wallet]
 dbPath = "wallet"
+coinType = "eth"
 
 [health]
 listenAddr = "localhost:8709"

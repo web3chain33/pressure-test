@@ -186,6 +186,7 @@ dbPath="parawallet"
 dbCache=16
 signType="secp256k1"
 minerdisable=true
+coinType = "eth"
 
 [exec]
 enableStat=false
