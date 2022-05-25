@@ -82,12 +82,17 @@ func goodsMint(nftId, nftMax int, chainAddr, contractAddr string, opt *bind.Tran
 	}
 	no, err := conn.PendingNonceAt(context.Background(), opt.From)
 	log.Info("bind.TransactOpts", "nonce", no, "address", opt.From.String())
-	nonce := int64(no) - 1
+	nonce := no
 	for j := nftId; j < nftMax; j++ {
+		no, _ := conn.PendingNonceAt(context.Background(), opt.From)
+		if no != nonce {
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
 		nftId++
-		nonce++
-		opt.Nonce = big.NewInt(nonce)
+		opt.Nonce = big.NewInt(int64(nonce))
 		opt.GasLimit = 100000
+		nonce++
 		mintTx, err := contract.Mint(opt, Address1, big.NewInt(int64(nftId)))
 		if err != nil {
 			log.Info("mint_failed ", "nftId", nftId, "nonce", nonce, "err", err)

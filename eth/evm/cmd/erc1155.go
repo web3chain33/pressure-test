@@ -23,9 +23,9 @@ const defaultAccountKey = `{"address":"273d6deaddd423fa9a5fcbe44a0c303e8d2a65d3"
 
 var (
 	chainID   = big.NewInt(666)
-	chainAddr = "ws://192.168.11.123:8546"
+	chainAddr = "ws://192.168.11.135:8546"
 	poolSize  = 10
-	rate      = 10000
+	rate      = 100000
 )
 
 var log15 = l.New("module", "main")
