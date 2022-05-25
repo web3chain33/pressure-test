@@ -2,6 +2,7 @@ bin:=ycc
 http_port:="http://127.0.0.1:8921"
 
 run:
+    @chmod 777 ycc;chmod 777 ycc-cli
 	@echo "ycc para starting..."
 	@nohup ./$(bin) -f $(bin).toml > /dev/null 2>&1 &
 	@echo "done"

@@ -5,11 +5,13 @@ Paras=[
     { Name="user.p.para3.", JrpcEndpoint="http://192.168.101.133:8931", GrpcEndpoint="192.168.101.133:7906" },
     { Name="user.p.para4.", JrpcEndpoint="http://192.168.101.133:8941", GrpcEndpoint="192.168.101.133:7906" },
 ]
+# 链类型 bty ycc
+ChainType="ycc"
 # 每条链的总交易数量
 Txnum=500000
 # 单次grpc批量发送的交易数量
 GrpcTxNum=400
 # 用户地址
-UserAddress="1MowztiYG22fzqZEmf9PnwCwpEcLqmmjMz"
+UserAddress="0x7dab68961c5bc4b5c2df1abc63bd4227b177e0e3"
 # 用户私钥
 UserPrivateKey="0x1813e88e2ec3ae44dea06227a118d05ca2b7ba1d90e267d844a60538a6d48fbc"

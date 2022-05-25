@@ -35,7 +35,7 @@ func (t *Transfer) localTransferTx(prikey crypto.PrivKey) (*chainTypes.Transacti
 	random := rand.New(rand.NewSource(time.Now().UnixNano()))
 	tx.Nonce = random.Int63()
 	tx.ChainID = yccChainId
-	tx.Sign(chainTypes.SECP256K1, prikey)
+	tx.Sign(Ty, prikey)
 
 	return tx, nil
 }

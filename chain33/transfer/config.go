@@ -7,8 +7,9 @@ import (
 )
 
 type Config struct {
-	Txnum          int `json:",default=250000"`
-	GrpcTxNum      int `json:",default=400"`
+	ChainType      string `json:",default=bty"` // 链类型 bty ycc
+	Txnum          int    `json:",default=250000"`
+	GrpcTxNum      int    `json:",default=400"`
 	Paras          Paras
 	UserAddress    string `json:",default=1MowztiYG22fzqZEmf9PnwCwpEcLqmmjMz"`
 	UserPrivateKey string `json:",default=0x1813e88e2ec3ae44dea06227a118d05ca2b7ba1d90e267d844a60538a6d48fbc"`

@@ -5,13 +5,14 @@ import (
 	"fmt"
 	chainCommon "github.com/33cn/chain33/common"
 	chainAddress "github.com/33cn/chain33/common/address"
+	ethAddr "github.com/33cn/chain33/system/address/eth"
 	chainTypes "github.com/33cn/chain33/types"
 	chainUtil "github.com/33cn/chain33/util"
 	evmAbi "github.com/33cn/plugin/plugin/dapp/evm/executor/abi"
-	evmtypes "github.com/33cn/plugin/plugin/dapp/evm/types"
+	evmCommon "github.com/33cn/plugin/plugin/dapp/evm/executor/vm/common"
+	evmTypes "github.com/33cn/plugin/plugin/dapp/evm/types"
 	"math/rand"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 )
@@ -26,6 +27,9 @@ var cpuNum = runtime.NumCPU()
 
 // 并发的平行链数量
 var parasSize = 4
+
+// Ty = signID 用于签名 参考  https://github.com/33cn/chain33/blob/master/types/sign.md 文档
+var Ty = int32(chainTypes.SECP256K1)
 
 // CallContract 需要部署的合约
 type DeployeContract struct {
@@ -49,6 +53,15 @@ func SetParasLen(l int) {
 	parasSize = l
 }
 
+func InitTy(chianType string) {
+	addrtype := int32(chainAddress.DefaultID)
+	if chianType == "ycc" {
+		addrtype = int32(ethAddr.ID)
+	}
+	Ty = chainTypes.EncodeSignID(chainTypes.SECP256K1, addrtype)
+}
+
+
 // Deploy contract return txhash,ContractAddr
 func (d *DeployeContract) Deploy() (string, string, error) {
 	//创建本地合约交易
@@ -68,13 +81,13 @@ func (d *DeployeContract) Deploy() (string, string, error) {
 	}
 
 	//获取合约地址
-	contractAddr := LocalGetContractAddr(d.CallAddr, txHash)
+	contractAddr := LocalGetContractAddr(d.CallAddr, tx.Hash())
 
 	return txHash, contractAddr, nil
 }
 
 func (d *DeployeContract) LocalCreateDeployTx() (*chainTypes.Transaction, error) {
-	exec := d.ParaName + evmtypes.ExecutorName
+	exec := d.ParaName + evmTypes.ExecutorName
 	toAddr := chainAddress.ExecAddress(exec)
 
 	bCode, err := chainCommon.FromHex(d.Bin)
@@ -90,7 +103,7 @@ func (d *DeployeContract) LocalCreateDeployTx() (*chainTypes.Transaction, error)
 		bCode = append(bCode, packData...)
 	}
 
-	action := evmtypes.EVMContractAction{
+	action := evmTypes.EVMContractAction{
 		Code:         bCode,
 		ContractAddr: toAddr,
 	}
@@ -115,9 +128,16 @@ func (d *DeployeContract) LocalCreateDeployTx() (*chainTypes.Transaction, error)
 
 // LocalGetContractAddr 本地构建合约地址 交易哈希需要去掉0x前缀
 // 参考
-func LocalGetContractAddr(caller, txhash string) string {
-	return chainAddress.HashToAddress(chainAddress.NormalVer,
-		chainAddress.ExecPubKey(caller+strings.TrimPrefix(txhash, "0x"))).String()
+//func LocalGetContractAddr(caller, txhash string) string {
+//	return chainAddress.HashToAddress(chainAddress.NormalVer,
+//		chainAddress.ExecPubKey(caller+strings.TrimPrefix(txhash, "0x"))).String()
+//}
+
+// LocalGetContractAddr 本地构建合约地址
+// 代码仓库 github.com/33cn/plugin v1.67.3-0.20220517092344-565e980cc752
+// 参考位置 github.com/33cn/plugin/plugin/dapp/evm/executor/exec.go ;func innerExec ;value contractAddrStr
+func LocalGetContractAddr(caller string, txhash []byte) string {
+	return evmCommon.NewContractAddress(*evmCommon.StringToAddress(caller), txhash).String()
 }
 
 // LocalCreateUnSignYCCEVMTx 本地构造ycc的evm未签名交易
@@ -132,7 +152,8 @@ func (c *CallContract) LocalCreateSignYCCEVMTx(pristr, parameter string) (*chain
 		return nil, err
 	}
 	prikey := chainUtil.HexToPrivkey(pristr)
-	tx.Sign(chainTypes.SECP256K1, prikey)
+
+	tx.Sign(Ty, prikey)
 
 	return tx, nil
 }
@@ -149,7 +170,7 @@ func (c *CallContract) LocalCreateSignYCCEVMTx(pristr, parameter string) (*chain
 //}
 
 func (c *CallContract) localCreateYCCEVMTx(parameter string) (*chainTypes.Transaction, error) {
-	exec := c.ParaName + evmtypes.ExecutorName
+	exec := c.ParaName + evmTypes.ExecutorName
 	toAddr := chainAddress.ExecAddress(exec)
 
 	_, packedParameter, err := evmAbi.Pack(parameter, c.Abi, false)
@@ -157,7 +178,7 @@ func (c *CallContract) localCreateYCCEVMTx(parameter string) (*chainTypes.Transa
 		return nil, err
 	}
 
-	action := evmtypes.EVMContractAction{
+	action := evmTypes.EVMContractAction{
 		Para:         packedParameter,
 		ContractAddr: c.ContractAddr,
 	}
@@ -242,7 +263,7 @@ func (c *CallContract) localTxGroup(pristr string, parameters ...string) ([]*cha
 			return nil, err
 		}
 		for j := 0; j < groupSize; j++ {
-			err := tx2.SignN(j, chainTypes.SECP256K1, prikey)
+			err := tx2.SignN(j, Ty, prikey)
 			if err != nil {
 				return nil, err
 			}
@@ -258,7 +279,7 @@ func (c *CallContract) localTxGroup(pristr string, parameters ...string) ([]*cha
 	//最后一组里只有一笔
 	case 1:
 		tx := tmp[0]
-		tx.Sign(chainTypes.SECP256K1, prikey)
+		tx.Sign(Ty, prikey)
 		txs = append(txs, tx)
 	default:
 		// 取最后一组的交易 左包右闭
@@ -267,7 +288,7 @@ func (c *CallContract) localTxGroup(pristr string, parameters ...string) ([]*cha
 			return nil, err
 		}
 		for j := 0; j < k; j++ {
-			err := tx2.SignN(j, chainTypes.SECP256K1, prikey)
+			err := tx2.SignN(j, Ty, prikey)
 			if err != nil {
 				return nil, err
 			}

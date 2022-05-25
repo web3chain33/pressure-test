@@ -27,6 +27,7 @@ func main() {
 	}
 	parasLen := len(paras)
 	util.SetParasLen(parasLen)
+	util.InitTy(Cfg.ChainType)
 	var wg sync.WaitGroup
 	wg.Add(parasLen)
 	for _, v := range paras {
