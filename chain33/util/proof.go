@@ -19,7 +19,10 @@ type Proof struct {
 // 创建存证交易
 func (t *Proof) localProofTx(prikey crypto.PrivKey) (*chainTypes.Transaction, error) {
 	execer := t.ParaName + "none"
-	execAddr := address.ExecAddress(execer)
+	execAddr, err := address.GetExecAddress(execer, AddrType)
+	if err != nil {
+		return nil, err
+	}
 
 	tx := &chainTypes.Transaction{Execer: []byte(execer), Payload: []byte("proot"), To: execAddr}
 

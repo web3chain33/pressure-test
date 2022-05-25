@@ -30,6 +30,7 @@ var parasSize = 4
 
 // Ty = signID 用于签名 参考  https://github.com/33cn/chain33/blob/master/types/sign.md 文档
 var Ty = int32(chainTypes.SECP256K1)
+var AddrType = int32(chainAddress.DefaultID)
 
 // CallContract 需要部署的合约
 type DeployeContract struct {
@@ -54,13 +55,11 @@ func SetParasLen(l int) {
 }
 
 func InitTy(chianType string) {
-	addrtype := int32(chainAddress.DefaultID)
 	if chianType == "ycc" {
-		addrtype = int32(ethAddr.ID)
+		AddrType = int32(ethAddr.ID)
 	}
-	Ty = chainTypes.EncodeSignID(chainTypes.SECP256K1, addrtype)
+	Ty = chainTypes.EncodeSignID(chainTypes.SECP256K1, AddrType)
 }
-
 
 // Deploy contract return txhash,ContractAddr
 func (d *DeployeContract) Deploy() (string, string, error) {
@@ -88,7 +87,10 @@ func (d *DeployeContract) Deploy() (string, string, error) {
 
 func (d *DeployeContract) LocalCreateDeployTx() (*chainTypes.Transaction, error) {
 	exec := d.ParaName + evmTypes.ExecutorName
-	toAddr := chainAddress.ExecAddress(exec)
+	toAddr, err := chainAddress.GetExecAddress(exec, AddrType)
+	if err != nil {
+		return nil, err
+	}
 
 	bCode, err := chainCommon.FromHex(d.Bin)
 	if err != nil {
@@ -171,7 +173,10 @@ func (c *CallContract) LocalCreateSignYCCEVMTx(pristr, parameter string) (*chain
 
 func (c *CallContract) localCreateYCCEVMTx(parameter string) (*chainTypes.Transaction, error) {
 	exec := c.ParaName + evmTypes.ExecutorName
-	toAddr := chainAddress.ExecAddress(exec)
+	toAddr, err := chainAddress.GetExecAddress(exec, AddrType)
+	if err != nil {
+		return nil, err
+	}
 
 	_, packedParameter, err := evmAbi.Pack(parameter, c.Abi, false)
 	if err != nil {

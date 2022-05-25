@@ -21,7 +21,10 @@ type Transfer struct {
 // 创建转账交易
 func (t *Transfer) localTransferTx(prikey crypto.PrivKey) (*chainTypes.Transaction, error) {
 	execer := t.ParaName + "coins"
-	execAddr := address.ExecAddress(execer)
+	execAddr, err := address.GetExecAddress(execer, AddrType)
+	if err != nil {
+		return nil, err
+	}
 	transfer := &cty.CoinsAction{}
 	v := &cty.CoinsAction_Transfer{Transfer: &chainTypes.AssetsTransfer{Amount: t.Amount, To: t.ToAddr}}
 	transfer.Value = v
