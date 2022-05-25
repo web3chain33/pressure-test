@@ -5,6 +5,7 @@ import (
 	"fmt"
 	chainCommon "github.com/33cn/chain33/common"
 	chainAddress "github.com/33cn/chain33/common/address"
+	_ "github.com/33cn/chain33/system/address/eth"
 	ethAddr "github.com/33cn/chain33/system/address/eth"
 	chainTypes "github.com/33cn/chain33/types"
 	chainUtil "github.com/33cn/chain33/util"
@@ -57,6 +58,12 @@ func SetParasLen(l int) {
 func InitTy(chianType string) {
 	if chianType == "ycc" {
 		AddrType = int32(ethAddr.ID)
+		// 加载, 确保在evm使能高度前, eth地址驱动已使能
+		driver, err := chainAddress.LoadDriver(AddrType, 0)
+		if err != nil {
+			panic(fmt.Sprintf("address driver must enable before %d", 0))
+		}
+		evmCommon.InitEvmAddressTypeOnce(driver)
 	}
 	Ty = chainTypes.EncodeSignID(chainTypes.SECP256K1, AddrType)
 }
