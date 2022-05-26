@@ -7,7 +7,7 @@ import (
 	log "github.com/33cn/chain33/common/log/log15"
 	"github.com/33cn/chain33/rpc/grpcclient"
 	chainTypes "github.com/33cn/chain33/types"
-	"github.com/chendehai/pressure-test/chain33/evm/util"
+	"github.com/chendehai/pressure-test/chain33/util"
 	"google.golang.org/grpc"
 	"runtime"
 	"sync"
@@ -27,6 +27,7 @@ func main() {
 	}
 	parasLen := len(paras)
 	util.SetParasLen(parasLen)
+	util.InitTy(Cfg.ChainType)
 	var wg sync.WaitGroup
 	wg.Add(parasLen)
 	for _, v := range paras {
@@ -130,6 +131,7 @@ func (p *Para) Run() {
 	if len(txs)%Cfg.GrpcTxNum != 0 {
 		g += 1
 	}
+
 	wg.Add(g)
 	log.Info(fmt.Sprintf("平行链%v开始发送，每次发送:%v笔,共发送%v次", p.Name, Cfg.GrpcTxNum, g))
 	for i := 0; i < g; i++ {

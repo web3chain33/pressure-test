@@ -1,4 +1,17 @@
 存证溯源的压力测试仓库
 
-目前有压力测试发行ERC721的程序,目录在chain33/erc721 编译指令 go build .
-执行需要将可执行文件和同目录下的config.toml放在客户端目录下，修改config配置文件来指定压测的链
+编译打包：
+压测程序的编译指令 make + 压测程序名
+config.toml为配置文件
+
+清理:
+make clean
+
+压力测试平行链发行ERC721,目录在chain33/erc721
+make erc721 编译打包
+
+压力测试平行链转账 transfer, 目录在chain33/transfer
+make transfer 编译打包
+
+压力测试平行链存证 proof, 目录在chain33/proof
+make proof 编译打包
