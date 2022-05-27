@@ -129,7 +129,7 @@ func (d *DeployeContract) LocalCreateDeployTx() (*chainTypes.Transaction, error)
 	random := rand.New(rand.NewSource(time.Now().UnixNano()))
 	tx.Nonce = random.Int63()
 	prikey := chainUtil.HexToPrivkey(d.CallPrivkey)
-	tx.Sign(chainTypes.SECP256K1, prikey)
+	tx.Sign(Ty, prikey)
 
 	return tx, nil
 }
