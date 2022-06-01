@@ -1,5 +1,5 @@
 run:
-    @chmod 777 ycc;chmod 777 ycc-cli
+	@chmod 777 ycc;chmod 777 ycc-cli
 	@echo "ycc solo starting..."
 	@nohup ./ycc -f ycc_lml.toml > /dev/null 2>&1 &
 	@echo "done"

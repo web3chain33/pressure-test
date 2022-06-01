@@ -142,7 +142,7 @@ func (d *DeployeContract) LocalCreateDeployTx() (*chainTypes.Transaction, error)
 //}
 
 // LocalGetContractAddr 本地构建合约地址
-// 代码仓库 github.com/33cn/plugin v1.67.3-0.20220517092344-565e980cc752
+// 链的代码仓库 github.com/33cn/plugin v1.67.3-0.20220517092344-565e980cc752
 // 参考位置 github.com/33cn/plugin/plugin/dapp/evm/executor/exec.go ;func innerExec ;value contractAddrStr
 func LocalGetContractAddr(caller string, txhash []byte) string {
 	return evmCommon.NewContractAddress(*evmCommon.StringToAddress(caller), txhash).String()
