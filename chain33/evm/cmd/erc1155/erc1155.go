@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	chainCommon "github.com/33cn/chain33/common"
 	"github.com/33cn/chain33/rpc/grpcclient"
 	chainTypes "github.com/33cn/chain33/types"
 	chainUtil "github.com/33cn/chain33/util"
@@ -17,25 +18,20 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type Job struct {
-	Parameter    string
-	Privkey      string
-	ContractAddr string
+type Conf struct {
+	OperationType   int     `yaml:"OperationType,default:1"`
+	TotalTx         int     `yaml:"TotalTx"`
+	GrpcTxNum       int     `yaml:"GrpcTxNum,default:400"`
+	RpcType         int     `yaml:"RpcType,default:1"`
+	DeployerAddr    string  `yaml:"DeployerAddr"`
+	DeployerPrivkey string  `yaml:"DeployerPrivkey"`
+	Chains          []Chain `yaml:"Chains"`
 }
 
-type Conf struct {
-	PoolSize        int      `yaml:"PoolSize"`
-	OperationType   int      `yaml:"OperationType"`
-	Rate            int      `yaml:"Rate"`
-	GroupSie        int      `yaml:"GroupSie"`
-	GrpcTxNum       int      `yaml:"GrpcTxNum"`
-	DeployerPrivkey string   `yaml:"DeployerPrivkey"`
-	DeployerAddr    string   `yaml:"DeployerAddr"`
-	RpcType         int      `yaml:"RpcType"` // 1:jsonrpc  2:grpc
-	MainChain       string   `yaml:"MainChain"`
-	Chain           []string `yaml:"Chain"`
-	ParaName        []string `yaml:"ParaName"`
-	ContractAddr    []string `yaml:"ContractAddr"`
+type Chain struct {
+	Url          string `yaml:","`
+	ParaName     string `yaml:","`
+	ContractAddr string `yaml:","`
 }
 
 type Addr struct {
@@ -71,111 +67,62 @@ func main() {
 		fmt.Println("初始化地址失败", err)
 		return
 	}
+	call.InitTy("ycc")
 
-	if c.RpcType == 2 {
+	if c.RpcType == 1 {
+		chainCount := len(c.Chains)
 
-		grpcJobChain1 := make(chan *chainTypes.Transaction, 5000)
-		grpcJobChain2 := make(chan *chainTypes.Transaction, 5000)
-		grpcJobChain3 := make(chan *chainTypes.Transaction, 5000)
-		grpcJobChain4 := make(chan *chainTypes.Transaction, 5000)
+		deployWg := &sync.WaitGroup{}
+		deployWg.Add(chainCount)
 
-		cha := []chan *chainTypes.Transaction{grpcJobChain1, grpcJobChain2, grpcJobChain3, grpcJobChain4}
-		InitGrpcJobChain(cha, c.ContractAddr[0], c.ParaName[0], c.DeployerPrivkey, c.OperationType, c.Rate)
-		time.Sleep(3 * time.Second)
-
-		for i := 0; i < len(cha); i++ {
-			go Send(c.PoolSize, c.Chain[0], cha[i])
-		}
-
-		time.Sleep(10 * time.Minute)
-		return
-	}
-
-	if c.RpcType == 3 {
-		start := time.Now()
-
-		nftId := 0
-		r := c.Rate/len(c.ContractAddr) + 1
-		job3 := make([][][]*chainTypes.Transaction, 0, len(c.ContractAddr))
-		for k := 0; k < len(c.ContractAddr); k++ {
-			jobLists := make([][]*chainTypes.Transaction, 0, r)
-			for i := 0; i < r; i++ {
-				l := make([]*chainTypes.Transaction, 0, len(AddressList))
-				jobLists = append(jobLists, l)
-			}
-
-			id := InitGrpcJobList(nftId, jobLists, c.ContractAddr[k], c.ParaName[k], c.DeployerPrivkey, c.OperationType, r, c.GroupSie)
-			nftId = id
-			job3 = append(job3, jobLists)
-		}
-
-		stop := time.Now()
-		fmt.Println("交易构造完毕，开始发送, 构造开始时间: ", start.String(), "结束时间: ", stop.String(), "耗时：", stop.Unix()-start.Unix())
-		for h := 0; h < len(job3); h++ {
-			for j := 0; j < len(job3[h]); j++ {
-				go SendList(c.Chain[h], job3[h][j], c.GrpcTxNum)
-			}
-		}
-
-		time.Sleep(10 * time.Minute)
-		return
-	}
-
-	if c.RpcType == 4 {
-		contractAddrLen := len(c.ParaName)
-
-		contractAddrs := make([]string, 0, contractAddrLen)
-		for i := 0; i < contractAddrLen; i++ {
+		for i := 0; i < chainCount; i++ {
 			d := &call.DeployContract{
-				Endpoint:     c.Chain[i],
-				ParaName:     c.ParaName[i],
+				Endpoint:     c.Chains[i].Url,
+				ParaName:     c.Chains[i].ParaName,
 				Bin:          bin,
 				Abi:          abi,
 				DeployerPri:  chainUtil.HexToPrivkey(c.DeployerPrivkey),
 				DeployerAddr: c.DeployerAddr,
 			}
 
-			_, contractAddr, err := d.Deploy()
+			deployHash, contractAddr, err := d.Deploy()
 			if err != nil {
 				panic(err)
 			}
-			contractAddrs = append(contractAddrs, contractAddr)
+			fmt.Println("部署合约完毕", c.Chains[i].ParaName, "--->", contractAddr, "hash", deployHash)
+			c.Chains[i].ContractAddr = contractAddr
+			go WaitDeployTransaction(c.Chains[i].Url, deployHash, deployWg)
 		}
-		c.ContractAddr = contractAddrs
+		deployWg.Wait()
 
 		start := time.Now()
 		nftId := 0
-		r := c.Rate / len(c.ContractAddr)
-		if c.Rate%len(c.ContractAddr) != 0 {
+
+		TxPeerChain := c.TotalTx / chainCount
+		r := TxPeerChain / len(AddressList)
+		if TxPeerChain%len(AddressList) != 0 {
 			r++
 		}
-		job3 := make([][][]*chainTypes.Transaction, 0, len(c.ContractAddr))
+		job3 := make([][][]*chainTypes.Transaction, 0, chainCount)
 
 		poolSize := 6
 		wg := &sync.WaitGroup{}
-		wg.Add(poolSize * len(c.ContractAddr))
+		wg.Add(poolSize * chainCount)
 
-		groupChains := make([]chan *TxGroupParams, 0, contractAddrLen)
-		resultChains := make([]chan *chainTypes.Transaction, 0, contractAddrLen)
-
-		job3Len := 0
-		for k := 0; k < len(c.ContractAddr); k++ {
+		for k := 0; k < chainCount; k++ {
 			jobLists := make([][]*chainTypes.Transaction, 0, r)
 			for i := 0; i < r; i++ {
 				l := make([]*chainTypes.Transaction, 0, len(AddressList))
 				jobLists = append(jobLists, l)
-				job3Len++
 			}
 			job3 = append(job3, jobLists)
 
 			groupChain := make(chan *TxGroupParams, 1000)
-			groupChains = append(groupChains, groupChain)
 			resultChain := make(chan *chainTypes.Transaction, 1000)
-			resultChains = append(resultChains, resultChain)
 
-			go PollCreateTxGroup(poolSize, c.ContractAddr[k], c.ParaName[k], c.DeployerPrivkey, groupChains[k], resultChains[k], wg)
-			go ChainToJobList(resultChains[k], job3[k])
-			go InitGrpcTxGroupChain(nftId, c.OperationType, r, c.GroupSie, groupChains[k])
+			go PollCreateTxGroup(poolSize, c.Chains[k].ContractAddr, c.Chains[k].ParaName, c.DeployerPrivkey, groupChain, resultChain, wg)
+			go ChainToJobList(resultChain, job3[k])
+			go InitGrpcTxGroupChain(nftId, c.OperationType, r, groupChain)
 
 			nftId += len(AddressList) * r
 
@@ -186,10 +133,10 @@ func main() {
 		createStop := time.Now()
 		fmt.Println("交易构造完毕，开始发送, 构造开始时间: ", start.String(), "结束时间: ", createStop.String(), "耗时：", createStop.Unix()-start.Unix())
 
-		wg.Add(job3Len)
+		wg.Add(chainCount * r)
 		for h := 0; h < len(job3); h++ {
 			for j := 0; j < len(job3[h]); j++ {
-				go SendListWaitGroup(c.Chain[h], job3[h][j], c.GrpcTxNum, wg)
+				go SendListWaitGroup(c.Chains[h].Url, job3[h][j], c.GrpcTxNum, wg)
 			}
 		}
 
@@ -200,55 +147,58 @@ func main() {
 		return
 	}
 
-	if c.RpcType == 5 {
-		contractAddrLen := len(c.ParaName)
+	if c.RpcType == 2 {
+		chainCount := len(c.Chains)
 
-		contractAddrs := make([]string, 0, contractAddrLen)
-		for i := 0; i < contractAddrLen; i++ {
+		deployWg := &sync.WaitGroup{}
+		deployWg.Add(chainCount)
+
+		for i := 0; i < chainCount; i++ {
 			d := &call.DeployContract{
-				Endpoint:     c.Chain[i],
-				ParaName:     c.ParaName[i],
+				Endpoint:     c.Chains[i].Url,
+				ParaName:     c.Chains[i].ParaName,
 				Bin:          bin,
 				Abi:          abi,
 				DeployerPri:  chainUtil.HexToPrivkey(c.DeployerPrivkey),
 				DeployerAddr: c.DeployerAddr,
 			}
 
-			_, contractAddr, err := d.Deploy()
+			deployHash, contractAddr, err := d.Deploy()
 			if err != nil {
 				panic(err)
 			}
-			contractAddrs = append(contractAddrs, contractAddr)
+
+			fmt.Println("部署合约完毕", c.Chains[i].ParaName, "--->", contractAddr, "hash", deployHash)
+			c.Chains[i].ContractAddr = contractAddr
+			go WaitDeployTransaction(c.Chains[i].Url, deployHash, deployWg)
 		}
-		c.ContractAddr = contractAddrs
-		fmt.Println("contractAddrs", contractAddrs)
-		time.Sleep(10 * time.Second)
+		deployWg.Wait()
 
 		start := time.Now()
 
 		nftId := 0
-		r := c.Rate / contractAddrLen
-		if c.Rate%contractAddrLen != 0 {
+
+		TxPeerChain := c.TotalTx / chainCount
+		r := TxPeerChain / len(AddressList)
+		if TxPeerChain%len(AddressList) != 0 {
 			r++
 		}
 
 		poolSize := 6
 		wg := &sync.WaitGroup{}
-		wg.Add(poolSize * contractAddrLen)
+		wg.Add(poolSize * chainCount)
 
-		groupChains := make([]chan *TxGroupParams, 0, contractAddrLen)
-		resultChains := make([]chan []*chainTypes.Transaction, 0, contractAddrLen)
+		resultChains := make([]chan []*chainTypes.Transaction, 0, chainCount)
 
-		for k := 0; k < len(c.ContractAddr); k++ {
+		for k := 0; k < chainCount; k++ {
 
 			groupChain := make(chan *TxGroupParams, 5000)
-			groupChains = append(groupChains, groupChain)
 			resultChain := make(chan []*chainTypes.Transaction, 5000)
 			resultChains = append(resultChains, resultChain)
 
-			go PollCreateTxGroupTxs(poolSize, c.ContractAddr[k], c.ParaName[k], c.DeployerPrivkey, groupChains[k], resultChains[k], c.GrpcTxNum, wg)
+			go PollCreateTxGroupTxs(poolSize, c.Chains[k].ContractAddr, c.Chains[k].ParaName, c.DeployerPrivkey, groupChain, resultChain, c.GrpcTxNum, wg)
 
-			go InitGrpcTxGroupChain(nftId, c.OperationType, r, c.GroupSie, groupChains[k])
+			go InitGrpcTxGroupChain(nftId, c.OperationType, r, groupChain)
 
 			nftId += len(AddressList) * r
 
@@ -256,7 +206,7 @@ func main() {
 
 		go func(wg *sync.WaitGroup) {
 			wg.Wait()
-			for h := 0; h < contractAddrLen; h++ {
+			for h := 0; h < chainCount; h++ {
 				close(resultChains[h])
 			}
 		}(wg)
@@ -264,15 +214,51 @@ func main() {
 		time.Sleep(10 * time.Second)
 		fmt.Println("开始发送交易")
 		wgSend := &sync.WaitGroup{}
-		wgSend.Add(contractAddrLen)
-		for h := 0; h < contractAddrLen; h++ {
-			go SendChainWaitGroup(c.MainChain, resultChains[h], wgSend)
+		wgSend.Add(chainCount)
+		for h := 0; h < chainCount; h++ {
+			go SendChainWaitGroup(c.Chains[h].Url, resultChains[h], wgSend)
 		}
 
 		wgSend.Wait()
 		sendStop := time.Now()
 		fmt.Println("交易发送完毕，发送结束时间", sendStop.String(), "耗时：", sendStop.Unix()-start.Unix())
 		time.Sleep(100 * time.Second)
+		return
+	}
+	if c.RpcType == 3 {
+		start := time.Now()
+		chainCount := len(c.Chains)
+
+		nftId := 0
+		TxPeerChain := c.TotalTx / chainCount
+		r := TxPeerChain / len(AddressList)
+		if TxPeerChain%len(AddressList) != 0 {
+			r++
+		}
+
+		job3 := make([][][]*chainTypes.Transaction, 0, chainCount)
+		for k := 0; k < chainCount; k++ {
+			jobLists := make([][]*chainTypes.Transaction, 0, r)
+			for i := 0; i < r; i++ {
+				l := make([]*chainTypes.Transaction, 0, len(AddressList))
+				jobLists = append(jobLists, l)
+			}
+
+			InitGrpcJobList(nftId, jobLists, c.Chains[k].ContractAddr, c.Chains[k].ParaName, c.DeployerPrivkey, c.OperationType, r)
+			nftId += len(AddressList) * r
+
+			job3 = append(job3, jobLists)
+		}
+
+		stop := time.Now()
+		fmt.Println("交易构造完毕，开始发送, 构造开始时间: ", start.String(), "结束时间: ", stop.String(), "耗时：", stop.Unix()-start.Unix())
+		for h := 0; h < chainCount; h++ {
+			for j := 0; j < len(job3[h]); j++ {
+				go SendList(c.Chains[h].Url, job3[h][j], c.GrpcTxNum)
+			}
+		}
+
+		time.Sleep(10 * time.Second)
 		return
 	}
 }
@@ -435,17 +421,21 @@ func ChainToJobList(resultChain chan *chainTypes.Transaction, jobLists [][]*chai
 	}
 }
 
-func InitGrpcTxGroupChain(nftId, operationType, rate, groupSize int, groupChain chan *TxGroupParams) {
+func InitGrpcTxGroupChain(nftId, operationType, rate int, groupChain chan *TxGroupParams) {
 	txCount := 0
+	groupSize := 20
 	params := make([]string, 0, groupSize)
 	privkeys := make([]string, 0, groupSize)
+	addressLen := len(AddressList)
 
 	if operationType == 1 {
-		for i := 0; i < len(AddressList); i++ {
+		for i := 0; i < addressLen; i++ {
 			for j := 0; j < rate; j++ {
 				nftId++
 				txCount++
 				params = append(params, fmt.Sprintf("mint(%q, %v)", AddressList[i].Address, nftId))
+				// p := nftId % addressLen
+				// privkeys = append(privkeys, AddressList[p].PrivKey)
 
 				if txCount >= groupSize {
 					param := &TxGroupParams{
@@ -456,6 +446,7 @@ func InitGrpcTxGroupChain(nftId, operationType, rate, groupSize int, groupChain 
 
 					txCount = 0
 					params = make([]string, 0, groupSize)
+					// privkeys = make([]string, 0, groupSize)
 				}
 
 			}
@@ -479,6 +470,7 @@ func InitGrpcTxGroupChain(nftId, operationType, rate, groupSize int, groupChain 
 
 					txCount = 0
 					params = make([]string, 0, groupSize)
+					privkeys = make([]string, 0, groupSize)
 				}
 			}
 		}
@@ -488,7 +480,7 @@ func InitGrpcTxGroupChain(nftId, operationType, rate, groupSize int, groupChain 
 	}
 }
 
-func InitGrpcJobList(nftId int, jobLists [][]*chainTypes.Transaction, contractAddr, paraName, deployerPrivkey string, operationType, rate, groupSize int) int {
+func InitGrpcJobList(nftId int, jobLists [][]*chainTypes.Transaction, contractAddr, paraName, deployerPrivkey string, operationType, rate int) int {
 	c := &call.CallContract{
 		ContractAddr: contractAddr,
 		ParaName:     paraName,
@@ -497,6 +489,7 @@ func InitGrpcJobList(nftId int, jobLists [][]*chainTypes.Transaction, contractAd
 	}
 
 	txCount := 0
+	groupSize := 20
 	params := make([]string, 0, groupSize)
 	privkeys := make([]string, 0, groupSize)
 	groupCount := 0
@@ -620,6 +613,7 @@ func SendChainWaitGroup(endpoint string, jobChan chan []*chainTypes.Transaction,
 
 	client := chainTypes.NewChain33Client(conn)
 
+	hashCh := make(chan string, 2)
 	for i := 0; i < 150; i++ {
 		txs, ok := <-jobChan
 		if !ok {
@@ -630,17 +624,68 @@ func SendChainWaitGroup(endpoint string, jobChan chan []*chainTypes.Transaction,
 			fmt.Println("SendTransaction err:", err, "txs:", txs)
 			continue
 		}
-		fmt.Println("SendTransactions replys, isOK: ", replys.ReplyList[0].IsOk, "i=", i)
+		firstHash := chainCommon.ToHex(txs[0].Hash())
+		fmt.Println("time= ", time.Now().Format("2006-01-02 15:04:05.99"),
+			"SendTransactions replys, isOK: ", replys.ReplyList[0].IsOk, "i=", i, "hash=", firstHash, "msg=", replys.ReplyList[0].String())
+		if i >= 1 {
+			WaitTransaction(client, <-hashCh, 5*time.Second)
+		}
 	}
 
 	for txs := range jobChan {
-		time.Sleep(200 * time.Millisecond)
 		replys, err := client.SendTransactions(context.Background(), &chainTypes.Transactions{Txs: txs})
 		if err != nil {
 			fmt.Println("SendTransaction err:", err, "txs:", txs)
 			continue
 		}
-		fmt.Println("SendTransactions replys, isOK: ", replys.ReplyList[0].IsOk)
+		firstHash := chainCommon.ToHex(txs[0].Hash())
+		fmt.Println("time= ", time.Now().Format("2006-01-02 15:04:05.99"),
+			"SendTransactions replys, isOK: ", replys.ReplyList[0].IsOk, "hash=", firstHash, "msg=", replys.ReplyList[0].String())
+
+		WaitTransaction(client, <-hashCh, 5*time.Second)
+		hashCh <- firstHash
+	}
+}
+
+func WaitDeployTransaction(endpoint, hash string, wg *sync.WaitGroup) {
+	conn, err := grpc.Dial(grpcclient.NewMultipleURL(endpoint), grpc.WithInsecure())
+	if err != nil {
+		fmt.Println("grpcclient.NewMultipleURL err:", err)
+		return
+	}
+
+	client := chainTypes.NewChain33Client(conn)
+	WaitTransaction(client, hash, 10*time.Second)
+
+	wg.Done()
+}
+
+func WaitTransaction(client chainTypes.Chain33Client, hash string, timeout time.Duration) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	queryTicker := time.NewTicker(100 * time.Millisecond)
+	defer queryTicker.Stop()
+
+	hashByte, _ := chainCommon.FromHex(hash)
+	for {
+		receipt, err := client.QueryTransaction(ctx, &chainTypes.ReqHash{Hash: hashByte})
+		if err != nil {
+			// fmt.Println("QueryTransaction, err=", err, "hash=", hash)
+		} else {
+			fmt.Println("time= ", time.Now().Format("2006-01-02 15:04:05.99"),
+				"QueryTransaction, receipt.Receipt.Ty=", receipt.Receipt.Ty, "hash=", hash)
+			if receipt.Receipt.Ty != chainTypes.ExecErr {
+				break
+			}
+		}
+
+		// Wait for the next round.
+		select {
+		case <-ctx.Done():
+			return
+		case <-queryTicker.C:
+		}
 	}
 }
 
@@ -655,14 +700,14 @@ func SendListWaitGroup(endpoint string, jobList []*chainTypes.Transaction, grpcT
 		return
 	}
 
-	//go func(client chainTypes.Chain33Client, txs []*chainTypes.Transaction) {
+	// go func(client chainTypes.Chain33Client, txs []*chainTypes.Transaction) {
 	//	replys, err := client.SendTransactions(context.Background(), &chainTypes.Transactions{Txs: txs})
 	//
 	//	if err != nil {
 	//		fmt.Println("SendTransaction err:", err)
 	//	}
 	//	fmt.Println("SendTransactions replys, isOK: ", replys.ReplyList[0].IsOk)
-	//}(client, jobList[i : i+grpcTxNum])
+	// }(client, jobList[i : i+grpcTxNum])
 	client := chainTypes.NewChain33Client(conn)
 	for i := 0; i < len(jobList); i += grpcTxNum {
 		replys, err := client.SendTransactions(context.Background(), &chainTypes.Transactions{Txs: jobList[i : i+grpcTxNum]})
