@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"sync"
 	"time"
 
@@ -19,19 +20,20 @@ import (
 )
 
 type Conf struct {
-	OperationType   int     `yaml:"OperationType,default:1"`
-	TotalTx         int     `yaml:"TotalTx"`
-	GrpcTxNum       int     `yaml:"GrpcTxNum,default:400"`
-	RpcType         int     `yaml:"RpcType,default:1"`
+	OperationType   int     `yaml:"OperationType" default:"1"`
+	TotalTx         int     `yaml:"TotalTx" default:"200000"`
+	GrpcTxNum       int     `yaml:"GrpcTxNum" default:"400"`
+	RpcType         int     `yaml:"RpcType"  default:"2"`
+	ChainType       string  `yaml:"ChainType"  default:"ycc"`
 	DeployerAddr    string  `yaml:"DeployerAddr"`
 	DeployerPrivkey string  `yaml:"DeployerPrivkey"`
 	Chains          []Chain `yaml:"Chains"`
 }
 
 type Chain struct {
-	Url          string `yaml:","`
-	ParaName     string `yaml:","`
-	ContractAddr string `yaml:","`
+	Url          string `yaml:"Url"`
+	ParaName     string `yaml:"ParaName"`
+	ContractAddr string `yaml:"ContractAddr"`
 }
 
 type Addr struct {
@@ -62,12 +64,12 @@ func main() {
 		return
 	}
 
-	err = InitAddress(*addressFile)
+	err = InitAddress(*addressFile, c.DeployerAddr, c.DeployerPrivkey)
 	if err != nil {
 		fmt.Println("初始化地址失败", err)
 		return
 	}
-	call.InitTy("ycc")
+	call.InitTy(c.ChainType)
 
 	if c.RpcType == 1 {
 		chainCount := len(c.Chains)
@@ -168,7 +170,7 @@ func main() {
 				panic(err)
 			}
 
-			fmt.Println("部署合约完毕", c.Chains[i].ParaName, "--->", contractAddr, "hash", deployHash)
+			fmt.Println("部署合约完毕", c.Chains[i].ParaName, "contractAddr=", contractAddr, "hash=", deployHash)
 			c.Chains[i].ContractAddr = contractAddr
 			go WaitDeployTransaction(c.Chains[i].Url, deployHash, deployWg)
 		}
@@ -263,9 +265,18 @@ func main() {
 	}
 }
 
-func InitAddress(addressFile string) error {
+func InitAddress(addressFile, addr, privkey string) error {
 	content, err := ioutil.ReadFile(addressFile)
 	if err != nil {
+		if os.IsNotExist(err) {
+			AddressList = []Addr{
+				{
+					Address: addr,
+					PrivKey: privkey,
+				},
+			}
+			return nil
+		}
 		return err
 	}
 
@@ -275,78 +286,6 @@ func InitAddress(addressFile string) error {
 		return err
 	}
 	return nil
-}
-
-func InitGrpcJobChain(grpcJobChain []chan *chainTypes.Transaction, contractAddr, paraName, deployerPrivkey string, operationType, rate int) {
-	go func(grpcJobChain []chan *chainTypes.Transaction, contractAddr, paraName, deployerPrivkey string, operationType, rate int) {
-		nftId := 0
-		c := &call.CallContract{
-			ContractAddr: contractAddr,
-			ParaName:     paraName,
-			Abi:          abi,
-			DeployerPri:  chainUtil.HexToPrivkey(deployerPrivkey),
-		}
-
-		if operationType == 1 {
-			for i := 0; i < len(AddressList); i++ {
-				for j := 0; j < rate; j++ {
-					nftId++
-					tx, err := c.LocalCreateYCCEVMTx(fmt.Sprintf("mint(%q, %v)", AddressList[i].Address, nftId))
-					if err != nil {
-						fmt.Println("c.LocalCreateYCCEVMTx ,err: ", err)
-						continue
-					}
-					y := nftId % len(grpcJobChain)
-					grpcJobChain[y] <- tx
-				}
-			}
-		} else if operationType == 2 {
-			for i := 0; i < len(AddressList); i++ {
-				ids := []int{nftId + 1, nftId + 2, nftId + 3, nftId + 4, nftId + 5}
-				nftId += 5
-
-				idsByte, _ := json.Marshal(ids)
-				tx, err := c.LocalCreateYCCEVMTx(fmt.Sprintf("batchMint(%q, %v)", AddressList[i].Address, string(idsByte)))
-				if err != nil {
-					fmt.Println("c.LocalCreateYCCEVMTx ,err: ", err)
-					continue
-				}
-				y := nftId % len(grpcJobChain)
-				grpcJobChain[y] <- tx
-			}
-		} else if operationType == 3 {
-			addrLen := len(AddressList)
-			for i := 0; i < addrLen; i++ {
-				for j := 0; j < rate; j++ {
-					nftId++
-					tx, err := c.LocalCreateYCCEVMTx(fmt.Sprintf("transfer(%q, %q, %v)", AddressList[i].Address, AddressList[addrLen-1-i].Address, nftId))
-					if err != nil {
-						fmt.Println("c.LocalCreateYCCEVMTx ,err: ", err)
-						continue
-					}
-					y := nftId % len(grpcJobChain)
-					grpcJobChain[y] <- tx
-				}
-			}
-		} else if operationType == 4 {
-			addrLen := len(AddressList)
-			for i := 0; i < addrLen; i++ {
-				ids := []int{nftId + 1, nftId + 2, nftId + 3, nftId + 4, nftId + 5}
-				nftId += 5
-
-				idsByte, _ := json.Marshal(ids)
-
-				tx, err := c.LocalCreateYCCEVMTx(fmt.Sprintf("batchTransfer(%q, %q, %v)", AddressList[i].Address, AddressList[addrLen-1-i].Address, string(idsByte)))
-				if err != nil {
-					fmt.Println("c.LocalCreateYCCEVMTx ,err: ", err)
-					continue
-				}
-				y := nftId % len(grpcJobChain)
-				grpcJobChain[y] <- tx
-
-			}
-		}
-	}(grpcJobChain, contractAddr, paraName, deployerPrivkey, operationType, rate)
 }
 
 type TxGroupParams struct {
@@ -434,8 +373,6 @@ func InitGrpcTxGroupChain(nftId, operationType, rate int, groupChain chan *TxGro
 				nftId++
 				txCount++
 				params = append(params, fmt.Sprintf("mint(%q, %v)", AddressList[i].Address, nftId))
-				// p := nftId % addressLen
-				// privkeys = append(privkeys, AddressList[p].PrivKey)
 
 				if txCount >= groupSize {
 					param := &TxGroupParams{
@@ -446,7 +383,6 @@ func InitGrpcTxGroupChain(nftId, operationType, rate int, groupChain chan *TxGro
 
 					txCount = 0
 					params = make([]string, 0, groupSize)
-					// privkeys = make([]string, 0, groupSize)
 				}
 
 			}
@@ -630,6 +566,7 @@ func SendChainWaitGroup(endpoint string, jobChan chan []*chainTypes.Transaction,
 		if i >= 1 {
 			WaitTransaction(client, <-hashCh, 5*time.Second)
 		}
+		hashCh <- firstHash
 	}
 
 	for txs := range jobChan {
@@ -644,6 +581,7 @@ func SendChainWaitGroup(endpoint string, jobChan chan []*chainTypes.Transaction,
 
 		WaitTransaction(client, <-hashCh, 5*time.Second)
 		hashCh <- firstHash
+		time.Sleep(300 * time.Millisecond)
 	}
 }
 
@@ -664,7 +602,7 @@ func WaitTransaction(client chainTypes.Chain33Client, hash string, timeout time.
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	queryTicker := time.NewTicker(100 * time.Millisecond)
+	queryTicker := time.NewTicker(200 * time.Millisecond)
 	defer queryTicker.Stop()
 
 	hashByte, _ := chainCommon.FromHex(hash)
@@ -673,7 +611,7 @@ func WaitTransaction(client chainTypes.Chain33Client, hash string, timeout time.
 		if err != nil {
 			// fmt.Println("QueryTransaction, err=", err, "hash=", hash)
 		} else {
-			fmt.Println("time= ", time.Now().Format("2006-01-02 15:04:05.99"),
+			fmt.Println("time=", time.Now().Format("2006-01-02 15:04:05.99"),
 				"QueryTransaction, receipt.Receipt.Ty=", receipt.Receipt.Ty, "hash=", hash)
 			if receipt.Receipt.Ty != chainTypes.ExecErr {
 				break
