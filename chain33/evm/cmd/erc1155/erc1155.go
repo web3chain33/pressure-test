@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"sync"
 	"time"
 
@@ -44,21 +43,31 @@ type Addr struct {
 var AddressList []Addr
 
 var (
-	configFile  = flag.String("f", "etc/config.yaml", "the config file")
-	addressFile = flag.String("a", "etc/address.json", "the address file")
+	configFile  = flag.String("f", "", "the config file")
+	addressFile = flag.String("a", "", "the address file")
 )
+
+func InitConfig(configFile string, c *Conf) error {
+	if configFile == "" {
+		configFile = "config.yaml"
+	}
+	content, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		return err
+	}
+	err = yaml.Unmarshal(content, c)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 func main() {
 	fmt.Println("开始测试")
 	flag.Parse()
 
-	content, err := ioutil.ReadFile(*configFile)
-	if err != nil {
-		fmt.Println("ioutil.ReadFile err: ", err)
-	}
-
 	var c Conf
-	err = yaml.Unmarshal(content, &c)
+	err := InitConfig(*configFile, &c)
 	if err != nil {
 		fmt.Println("读取配置失败 err:", err)
 		return
@@ -266,17 +275,18 @@ func main() {
 }
 
 func InitAddress(addressFile, addr, privkey string) error {
+	if addressFile == "" {
+		AddressList = []Addr{
+			{
+				Address: addr,
+				PrivKey: privkey,
+			},
+		}
+		return nil
+	}
+
 	content, err := ioutil.ReadFile(addressFile)
 	if err != nil {
-		if os.IsNotExist(err) {
-			AddressList = []Addr{
-				{
-					Address: addr,
-					PrivKey: privkey,
-				},
-			}
-			return nil
-		}
 		return err
 	}
 
