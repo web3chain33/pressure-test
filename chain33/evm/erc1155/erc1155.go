@@ -75,23 +75,23 @@ func InitConfig(configFile string, c *Conf) error {
 		c.Chains = []Chain{
 			{
 				ParaName:     "user.p.para_pressuretest_1.",
-				ContractAddr: "",
+				ContractAddr: "0xf8c5eaf75897c7e05f7b61805ca5115c730d7123",
 			},
 			{
 				ParaName:     "user.p.para_pressuretest_2.",
-				ContractAddr: "",
+				ContractAddr: "0x38ab8ba4dc0160207c64975c4541bad48855f497",
 			},
 			{
 				ParaName:     "user.p.para_pressuretest_3.",
-				ContractAddr: "",
+				ContractAddr: "0xf63ee25bc72f07eaa791867278ddad754510a6b2",
 			},
 			{
 				ParaName:     "user.p.para_pressuretest_4.",
-				ContractAddr: "",
+				ContractAddr: "0x812ff6c32d839de9ac6b6dd96434e96e344dd1c5",
 			},
 			{
 				ParaName:     "user.p.para_pressuretest_5.",
-				ContractAddr: "",
+				ContractAddr: "0xcde3c972a8e54ba1b2a17424303104b2580080b1",
 			},
 		}
 	}
