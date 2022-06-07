@@ -276,7 +276,7 @@ func main() {
 
 		wgSend.Wait()
 		sendStop := time.Now()
-		fmt.Println("交易发送完毕，发送结束时间", sendStop.String(), "耗时：", sendStop.Unix()-start.Unix())
+		fmt.Println("交易发送完毕，发送结束时间:", sendStop.Format("2006-01-02 15:04:05.99"), "发送开始时间:", start.Format("2006-01-02 15:04:05.99"), "耗时:", sendStop.Unix()-start.Unix())
 		time.Sleep(5 * time.Second)
 		return
 	}
