@@ -19,18 +19,18 @@ import (
 )
 
 type Conf struct {
-	OperationType   int     `yaml:"OperationType" default:"1"`
-	TotalTx         int     `yaml:"TotalTx" default:"200000"`
-	GrpcTxNum       int     `yaml:"GrpcTxNum" default:"400"`
-	RpcType         int     `yaml:"RpcType"  default:"2"`
-	ChainType       string  `yaml:"ChainType"  default:"ycc"`
+	OperationType   int     `yaml:"OperationType"`
+	TotalTx         int     `yaml:"TotalTx"`
+	GrpcTxNum       int     `yaml:"GrpcTxNum"`
+	RpcType         int     `yaml:"RpcType"`
+	ChainType       string  `yaml:"ChainType"`
 	DeployerAddr    string  `yaml:"DeployerAddr"`
 	DeployerPrivkey string  `yaml:"DeployerPrivkey"`
+	ChainUrl        string  `yaml:"ChainUrl"`
 	Chains          []Chain `yaml:"Chains"`
 }
 
 type Chain struct {
-	Url          string `yaml:"Url"`
 	ParaName     string `yaml:"ParaName"`
 	ContractAddr string `yaml:"ContractAddr"`
 }
@@ -58,6 +58,42 @@ func InitConfig(configFile string, c *Conf) error {
 	err = yaml.Unmarshal(content, c)
 	if err != nil {
 		return err
+	}
+	if c.OperationType == 0 {
+		c.OperationType = 1
+	}
+	if c.RpcType == 0 {
+		c.RpcType = 2
+	}
+	if c.GrpcTxNum == 0 {
+		c.GrpcTxNum = 400
+	}
+	if len(c.ChainType) == 0 {
+		c.ChainType = "ycc"
+	}
+	if len(c.Chains) == 0 {
+		c.Chains = []Chain{
+			{
+				ParaName:     "user.p.para_pressuretest_1.",
+				ContractAddr: "",
+			},
+			{
+				ParaName:     "user.p.para_pressuretest_2.",
+				ContractAddr: "",
+			},
+			{
+				ParaName:     "user.p.para_pressuretest_3.",
+				ContractAddr: "",
+			},
+			{
+				ParaName:     "user.p.para_pressuretest_4.",
+				ContractAddr: "",
+			},
+			{
+				ParaName:     "user.p.para_pressuretest_5.",
+				ContractAddr: "",
+			},
+		}
 	}
 	return nil
 }
@@ -87,8 +123,12 @@ func main() {
 		deployWg.Add(chainCount)
 
 		for i := 0; i < chainCount; i++ {
+			if len(c.Chains[i].ContractAddr) > 0 {
+				deployWg.Done()
+				continue
+			}
 			d := &call.DeployContract{
-				Endpoint:     c.Chains[i].Url,
+				Endpoint:     c.ChainUrl,
 				ParaName:     c.Chains[i].ParaName,
 				Bin:          bin,
 				Abi:          abi,
@@ -102,7 +142,7 @@ func main() {
 			}
 			fmt.Println("部署合约完毕", c.Chains[i].ParaName, "--->", contractAddr, "hash", deployHash)
 			c.Chains[i].ContractAddr = contractAddr
-			go WaitDeployTransaction(c.Chains[i].Url, deployHash, deployWg)
+			go WaitDeployTransaction(c.ChainUrl, deployHash, deployWg)
 		}
 		deployWg.Wait()
 
@@ -147,14 +187,14 @@ func main() {
 		wg.Add(chainCount * r)
 		for h := 0; h < len(job3); h++ {
 			for j := 0; j < len(job3[h]); j++ {
-				go SendListWaitGroup(c.Chains[h].Url, job3[h][j], c.GrpcTxNum, wg)
+				go SendListWaitGroup(c.ChainUrl, job3[h][j], c.GrpcTxNum, wg)
 			}
 		}
 
 		wg.Wait()
 		sendStop := time.Now()
 		fmt.Println("交易发送完毕，发送结束时间", sendStop.String(), "耗时：", sendStop.Unix()-createStop.Unix())
-		time.Sleep(100 * time.Second)
+		time.Sleep(5 * time.Second)
 		return
 	}
 
@@ -165,8 +205,12 @@ func main() {
 		deployWg.Add(chainCount)
 
 		for i := 0; i < chainCount; i++ {
+			if len(c.Chains[i].ContractAddr) > 0 {
+				deployWg.Done()
+				continue
+			}
 			d := &call.DeployContract{
-				Endpoint:     c.Chains[i].Url,
+				Endpoint:     c.ChainUrl,
 				ParaName:     c.Chains[i].ParaName,
 				Bin:          bin,
 				Abi:          abi,
@@ -181,11 +225,9 @@ func main() {
 
 			fmt.Println("部署合约完毕", c.Chains[i].ParaName, "contractAddr=", contractAddr, "hash=", deployHash)
 			c.Chains[i].ContractAddr = contractAddr
-			go WaitDeployTransaction(c.Chains[i].Url, deployHash, deployWg)
+			go WaitDeployTransaction(c.ChainUrl, deployHash, deployWg)
 		}
 		deployWg.Wait()
-
-		start := time.Now()
 
 		nftId := 0
 
@@ -223,17 +265,19 @@ func main() {
 		}(wg)
 
 		time.Sleep(10 * time.Second)
+
 		fmt.Println("开始发送交易")
+		start := time.Now()
 		wgSend := &sync.WaitGroup{}
 		wgSend.Add(chainCount)
 		for h := 0; h < chainCount; h++ {
-			go SendChainWaitGroup(c.Chains[h].Url, resultChains[h], wgSend)
+			go SendChainWaitGroup(c.ChainUrl, resultChains[h], wgSend)
 		}
 
 		wgSend.Wait()
 		sendStop := time.Now()
 		fmt.Println("交易发送完毕，发送结束时间", sendStop.String(), "耗时：", sendStop.Unix()-start.Unix())
-		time.Sleep(100 * time.Second)
+		time.Sleep(5 * time.Second)
 		return
 	}
 	if c.RpcType == 3 {
@@ -265,11 +309,11 @@ func main() {
 		fmt.Println("交易构造完毕，开始发送, 构造开始时间: ", start.String(), "结束时间: ", stop.String(), "耗时：", stop.Unix()-start.Unix())
 		for h := 0; h < chainCount; h++ {
 			for j := 0; j < len(job3[h]); j++ {
-				go SendList(c.Chains[h].Url, job3[h][j], c.GrpcTxNum)
+				go SendList(c.ChainUrl, job3[h][j], c.GrpcTxNum)
 			}
 		}
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(5 * time.Second)
 		return
 	}
 }
@@ -545,13 +589,7 @@ func InitGrpcJobList(nftId int, jobLists [][]*chainTypes.Transaction, contractAd
 func SendChainWaitGroup(endpoint string, jobChan chan []*chainTypes.Transaction, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	maxMsgSize := 20 * 1024 * 1024 // 最大传输数据 最大区块大小
-	diaOpt := grpc.WithDefaultCallOptions(
-		grpc.MaxCallRecvMsgSize(maxMsgSize),
-		grpc.MaxCallSendMsgSize(maxMsgSize),
-	)
-
-	conn, err := grpc.Dial(grpcclient.NewMultipleURL(endpoint), grpc.WithInsecure(), diaOpt)
+	conn, err := grpc.Dial(grpcclient.NewMultipleURL(endpoint), grpc.WithInsecure())
 	if err != nil {
 		fmt.Println("grpcclient.NewMultipleURL err:", err)
 		return

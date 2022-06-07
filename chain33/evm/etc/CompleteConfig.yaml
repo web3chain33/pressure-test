@@ -1,0 +1,30 @@
+OperationType: 1
+TotalTx: 200000
+GrpcTxNum: 400
+RpcType: 2
+ChainType: "ycc"
+DeployerAddr: ""
+DeployerPrivkey: ""
+ChainUrl: ""
+Chains:
+  - {
+    ParaName: "user.p.para_pressuretest_1.",
+    ContractAddr: "",
+  }
+  - {
+    ParaName: "user.p.para_pressuretest_2.",
+    ContractAddr: "",
+  }
+  - {
+    ParaName: "user.p.para_pressuretest_3.",
+    ContractAddr: "",
+  }
+  - {
+    ParaName: "user.p.para_pressuretest_4.",
+    ContractAddr: "",
+  }
+  - {
+    ParaName: "user.p.para_pressuretest_5.",
+    ContractAddr: "",
+  }
+

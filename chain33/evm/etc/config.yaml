@@ -1,24 +1,8 @@
-PoolSize: 10
-OperationType: 1
-Rate: 10
-GroupSie: 20
-GrpcTxNum: 400
-DeployerPrivkey: "0x1813e88e2ec3ae44dea06227a118d05ca2b7ba1d90e267d844a60538a6d48fbc"
-DeployerAddr: "1MowztiYG22fzqZEmf9PnwCwpEcLqmmjMz"
-RpcType: 4
-Chain:
-  - "192.168.101.123:8912"
-  - "192.168.101.123:8922"
-  - "192.168.101.123:8932"
-  - "192.168.101.123:8942"
-ParaName:
-  - "user.p.para1."
-  - "user.p.para2."
-  - "user.p.para3."
-  - "user.p.para4."
-ContractAddr:
-  - "1GBg96QdkzDNRR79JeF3VQGo9kALtn8xBK"
-  - "1DEBHKfmzNEhCRsPQLUrfuxfF77j8ovi6S"
-  - "1QDCcx3oJAgG3wCvErUyxZhg4zAzV2XS3f"
-  - "1LNcc4qmZbd3v2MbyzjYx1SwWyp74H6fKk"
-
+# 需要发送的交易总量，例如：200000表示总共发送二十万笔交易
+TotalTx: 200000
+# 扣费地址，例如："0xd89e69a8f2c1041edd7616cf079c7084bb7a5242"
+DeployerAddr: ""
+# 扣费地址对应的私钥, 例如："0xcf6546e9e659d15e6b4893f0ab32a06d103931a8230b0bde71459d2b27d6944"
+DeployerPrivkey: ""
+# 需要发送交易的远程地址 对于公链，122.224.124.253:9902
+ChainUrl: ""
