@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	goods2 "github.com/chendehai/pressure-test/avalanche/goods"
 	"github.com/chendehai/pressure-test/avax"
+	"github.com/chendehai/pressure-test/avax/goods"
 
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -126,7 +126,7 @@ type BatchMintResult struct {
 	ID          int
 	Err         error
 	Result      []*MintResult
-	Client      *goods2.Client
+	Client      *goods.Client
 	Start, End  time.Time
 	Count       int64
 	FailedCount int64
@@ -196,7 +196,7 @@ func (r *BatchMintResult) StringWait() string {
 func BatchMint(evmClient *avax.Client, count int64, threadNum int) (*BatchMintResult, error) {
 	fmt.Printf("BatchMint start, count:%d,threadNum:%d\n", count, threadNum)
 	defer fmt.Println("BatchMint end")
-	client, err := goods2.NewAccountClient(evmClient, testKey, testAbi, []byte(testBin))
+	client, err := goods.NewAccountClient(evmClient, testKey, testAbi, []byte(testBin))
 	if err != nil {
 		return nil, err
 	}
