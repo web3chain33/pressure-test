@@ -6,6 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -100,6 +102,7 @@ func InitConfig(configFile string, c *Conf) error {
 
 func main() {
 	fmt.Println("开始测试")
+	os.Chdir(pwd())
 	flag.Parse()
 
 	var c Conf
@@ -264,7 +267,7 @@ func main() {
 			}
 		}(wg)
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(5 * time.Second)
 
 		fmt.Println("开始发送交易")
 		start := time.Now()
@@ -745,6 +748,14 @@ func Send(poolSize int, endpoint string, grpcJobChain chan *chainTypes.Transacti
 			}
 		}(endpoint, grpcJobChain)
 	}
+}
+
+func pwd() string {
+	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		panic(err)
+	}
+	return dir
 }
 
 const (
