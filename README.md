@@ -16,4 +16,3 @@ make transfer 编译打包
 压力测试平行链存证 proof, 目录在chain33/proof
 make proof 编译打包
 
-为了便于快速测试，已经编译好可执行文件，[点击查看快速使用](./chain33/evm/erc1155/README.md)
