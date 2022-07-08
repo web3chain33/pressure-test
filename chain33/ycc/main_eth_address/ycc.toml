@@ -18,7 +18,7 @@ dbCache = 512
 dbPath = "datadir"
 disableBlockBroadcast = false
 disableShard = true
-enablePushSubscribe = false
+enablePushSubscribe = true
 enableReExecLocal = false
 enableReduceLocaldb = true
 enableTxQuickIndex = true
@@ -56,19 +56,19 @@ minLtBlockSize = 100
 [rpc]
 certFile = "cert.pem"
 enableTLS = false
-grpcBindAddr = "localhost:9902"
+grpcBindAddr = "0.0.0.0:9902"
 grpcFuncWhitelist = ["*"]
-jrpcBindAddr = "localhost:9901"
+jrpcBindAddr = "0.0.0.0:9901"
 jrpcFuncWhitelist = ["*"]
 keyFile = "key.pem"
-whitelist = ["127.0.0.1"]
+whitelist = ["0.0.0.0"]
 
 [rpc.sub.eth]
 enable = false
-httpAddr = "localhost:8547"
+httpAddr = "0.0.0.0:8547"
 httpApi = ["eth", "web3", "personal", "admin", "net"]
 # websocket 绑定地址
-wsAddr = "localhost:8548"
+wsAddr = "0.0.0.0:8548"
 wsApi = ["eth", "web3", "personal", "admin", "net"]
 
 [consensus.sub.pos33]

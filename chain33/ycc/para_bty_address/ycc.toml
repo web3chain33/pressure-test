@@ -233,7 +233,7 @@ maxTreeLeaves=1024
 [fork.system]
 ForkChainParamV1= 0
 ForkCheckTxDup=0
-ForkBlockHash= 1
+ForkBlockHash= 5000000
 ForkMinerTime= 0
 ForkTransferExec=0
 ForkExecKey=0
@@ -297,14 +297,14 @@ ForkTradePrice = 0
 [fork.sub.paracross]
 Enable=0
 ForkParacrossWithdrawFromParachain=0
-ForkParacrossCommitTx=11
-ForkLoopCheckCommitTxDone=61
+ForkParacrossCommitTx=0
+ForkLoopCheckCommitTxDone=0
 #仅平行链适用，自共识分阶段开启，缺省是0，若对应主链高度7200000之前开启过自共识，需要重新配置此分叉，并为之前自共识设置selfConsensEnablePreContract配置项
 ForkParaSelfConsStages=0
 ForkParaAssetTransferRbk=0
 ForkParaSupervision=0 #======新增
 #仅平行链适用，开启挖矿交易的高度，已有代码版本可能未在0高度开启挖矿，需要设置这个高度，新版本默认从0开启挖矿，通过交易配置分阶段奖励
-ForkParaFullMinerHeight=0
+ForkParaFullMinerHeight=-1
 ForkParaRootHash=0 #======新增
 #nodegroup approve需要经过autonomy board成员审批,平行链不开启
 ForkParaAutonomySuperGroup=-1

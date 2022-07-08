@@ -4,6 +4,11 @@ CoinSymbol="para"
 EnableParaFork=true #true # TODO 不一样
 ChainID=999
 
+[address]
+defaultDriver="eth"
+[address.enableHeight]
+eth=0
+
 [crypto]
 
 [log]
@@ -69,10 +74,14 @@ whitelist=["*"] # TODO 不一样
 jrpcFuncWhitelist=["*"]
 grpcFuncWhitelist=["*"]
 
-[address]
-defaultDriver="eth"
-[address.enableHeight]
-eth=0
+[rpc.sub.eth]
+enable=false
+httpAddr="0.0.0.0:8545"
+httpApi=["eth","web3","personal","admin","net"]
+# websocket 绑定地址
+wsAddr="0.0.0.0:8546"
+wsApi=["eth","web3","personal","admin","net"]
+
 
 [mempool]
 name="para" # TODO 不一样
@@ -113,11 +122,6 @@ minerMode="normal"
 #挖矿减半周期,按高度减半
 halvePeriod=1000
 
-#[consensus.sub.solo]
-#genesis="1CbEVT9RnM5oZhWMj4fxUrJX94VtRotzvs"
-#hotkeyAddr="1CbEVT9RnM5oZhWMj4fxUrJX94VtRotzvs"
-# TODO: 没有
-
 [consensus.sub.para]
 #主链节点的grpc服务器ip，当前可以支持多ip负载均衡，如“118.31.177.1:8802,39.97.2.127:8802”
 #ParaRemoteGrpcClient="118.31.177.1:8802,39.97.2.127:8802,120.77.111.44:8802,jiedian2.bityuan.com,cloud.bityuan.com"
@@ -142,6 +146,11 @@ mainForkParacrossCommitTx=1# TODO 不一样
 mainLoopCheckCommitTxDoneForkHeight=1 # TODO 不一样
 #无平行链交易的主链区块间隔，平行链产生一个空块，从高度0开始，配置[blockHeight:interval],比如["0:50","1000:100"]
 emptyBlockInterval=["0:500"]
+
+#平行链共识节点聚合签名配置
+[consensus.sub.para.bls]
+#是否开启聚合签名，缺省不开启
+blsSign=false
 
 [store]
 name="kvmvccmavl"
@@ -200,12 +209,6 @@ superManager=["133AfuMYQXRxc45JGUb1jLk1M1W4ka39L1","0x862f23de306f0a35c122b11a6f
 #autonomy执行器名字,空则不开启,使用superManager list
 autonomyExec=""
 
-[fork.sub.manage]
-Enable=0
-ForkManageExec=0
-#manage增加配置需要经过autonomy board成员审批，平行链不开启
-ForkManageAutonomyEnable=-1
-
 [exec.sub.token]
 saveTokenTxList=true
 tokenApprs=[]
@@ -214,13 +217,16 @@ tokenApprs=[]
 #平行链自共识停止n个空块的对应主链高度后，超级账户可以直接参与投票,这个高度只在主链有效
 paraConsensusStopBlocks=30000
 
+[exec.sub.autonomy]
+total="16htvcBNSEA7fZhAdLJphDwQRQJaHpyHTp"
+useBalance=false
+
 [exec.sub.evm]
 #平行链evm合约ETH资产映射的合约和资产类型（symbol）
 ethMapFromExecutor="paracross"
 ethMapFromSymbol="coins.bty"
-evmGasLimit=1
 
-[exec.sub.mix] # TODO: 多的
+[exec.sub.mix]
 #私对私的交易费,交易比较大，需要多的手续费
 txFee=0
 #私对私token转账，花费token(true)还是BTY(false),
@@ -230,13 +236,19 @@ pointHX="19172955941344617222923168298456110557655645809646772800021167670156933
 pointHY="21116962883761739586121793871108889864627195706475546685847911817475098399811"
 #电路最大支持1024个叶子hash，10 level， 配置可以小于1024,但不能大于
 maxTreeLeaves=1024
+#管理员列表
+mixApprs=[]
+
+[exec.sub.zksync]
+#管理员列表
+managers=[]
 
 #系统中所有的fork,默认用chain33的测试网络的
 #但是我们可以替换
 [fork.system]
 ForkChainParamV1= 0
 ForkCheckTxDup=0
-ForkBlockHash=0
+ForkBlockHash=5000000
 ForkMinerTime= 0
 ForkTransferExec=0
 ForkExecKey=0
@@ -259,6 +271,11 @@ ForkCacheDriver=0
 ForkTicketFundAddrV1=-1 #fork6.3
 #主链和平行链都使用同一个fork高度
 ForkRootHash=0
+#地址key格式化, 主要针对eth地址
+ForkFormatAddressKey=0
+
+[fork.sub.none]
+ForkUseTimeDelay=0
 
 [fork.sub.coins]
 Enable=0
@@ -280,6 +297,12 @@ ForkRetriveAsset=0
 [fork.sub.hashlock]
 Enable=0
 ForkBadRepeatSecret=0
+
+[fork.sub.manage]
+Enable=0
+ForkManageExec=0
+#manage增加配置需要经过autonomy board成员审批，平行链不开启
+ForkManageAutonomyEnable=-1
 
 [fork.sub.token]
 Enable=0
@@ -307,15 +330,12 @@ ForkParaSelfConsStages=0
 ForkParaAssetTransferRbk=0
 ForkParaSupervision=0 #======新增
 #仅平行链适用，开启挖矿交易的高度，已有代码版本可能未在0高度开启挖矿，需要设置这个高度，新版本默认从0开启挖矿，通过交易配置分阶段奖励
-ForkParaFullMinerHeight=0
+ForkParaFullMinerHeight=-1
 ForkParaRootHash=0 #======新增
 #nodegroup approve需要经过autonomy board成员审批,平行链不开启
 ForkParaAutonomySuperGroup=-1
 #平行链支持自由注册，主链上申请者或超级管理员或社区任其一即可注册，平行链默认开启
 ForkParaFreeRegister=0
-
-[fork.sub.zksync]
-Enable=0
 
 [fork.sub.evm]
 Enable=0
@@ -393,7 +413,7 @@ ForkUnfreezeIDX= 0
 
 [fork.sub.autonomy]
 Enable=0
-ForkAutonomyDelRule=0 #=======新增
+ForkAutonomyDelRule=0
 ForkAutonomyEnableItem=0
 
 [fork.sub.jsvm]
@@ -407,9 +427,17 @@ Enable=0
 ForkIssuanceTableUpdate=0
 ForkIssuancePrecision=0
 
+[fork.sub.collateralize]
+Enable=0
+ForkCollateralizeTableUpdate=0
+ForkCollateralizePrecision=0
+
 #对已有的平行链如果不是从0开始同步数据，需要设置这个kvmvccmavl的对应平行链高度的fork，如果从0开始同步，statehash会跟以前mavl的不同
-[fork.sub.store-kvmvccmavl] # TODO
+[fork.sub.store-kvmvccmavl]
 ForkKvmvccmavl=0
+
+[fork.sub.zksync]
+Enable=0
 
 [pprof]
 listenAddr = ":6068"
@@ -476,8 +504,3 @@ ForkParamV6 = 0
 ForkParamV7 = 0
 ForkParamV8 = 0
 ForkParamV9 = 0
-
-[fork.sub.collateralize]
-Enable=0
-ForkCollateralizeTableUpdate=0
-ForkCollateralizePrecision=0

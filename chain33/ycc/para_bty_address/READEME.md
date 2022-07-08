@@ -14,7 +14,7 @@ ycc.go里修改fork.sub.paracross，ForkParacrossCommitTx=1、ForkLoopCheckCommi
 
 将ycc，ycc-cli 拷贝到服务器
 
-配置和脚本仓库 https://github.com/chendehai/pressure-test/tree/master/chain33/ycc/main_bty_address ，里面的配置已经修改过，支持平行链从高度1开始自共识，区块链无手续费模式
+配置和脚本仓库 https://github.com/web3chain33/pressure-test/tree/master/chain33/ycc/main_bty_address ，里面的配置已经修改过，支持平行链从高度1开始自共识，区块链无手续费模式
 
 将该目录下的文件都拷贝到服务器
 
@@ -22,9 +22,9 @@ ycc.go里修改fork.sub.paracross，ForkParacrossCommitTx=1、ForkLoopCheckCommi
 
 执行 make run 指令启动ycc
 
-执行 bash [wallet-genesis.sh](https://github.com/chendehai/pressure-test/blob/master/chain33/ycc/main/wallet-genesis.sh)  指令导入钱包种子，挖矿私钥，解锁钱包并挖矿
+执行 bash [wallet-genesis.sh](https://github.com/web3chain33/pressure-test/blob/master/chain33/ycc/main/wallet-genesis.sh)  指令导入钱包种子，挖矿私钥，解锁钱包并挖矿
 
-执行 bash [peerinfo.sh](https://github.com/chendehai/pressure-test/blob/master/chain33/ycc/main/peerinfo.sh) 指令查看区块高度
+执行 bash [peerinfo.sh](https://github.com/web3chain33/pressure-test/blob/master/chain33/ycc/main/peerinfo.sh) 指令查看区块高度
 
 高度正常增长表明搭建成功
 
@@ -38,7 +38,7 @@ ycc.go里修改fork.sub.paracross，ForkParacrossCommitTx=1、ForkLoopCheckCommi
 
 单独测试环境的平行链需要使用plugin的版本进行编译，配置需要跟主链的配置对应上，修改plugin里的配置文件consensus.sub.para，consensus.sub.para需要比主链的ForkParacrossCommitTx大，也就是大于等于1，mainLoopCheckCommitTxDoneForkHeight需要比主链的ForkLoopCheckCommitTxDone大，也是大于等于1，startHeight=1，mainBlockHashForkHeight和主链的ForkBlockHash一致
 
-配置和脚本仓库 https://github.com/chendehai/pressure-test/tree/master/chain33/ycc/para_bty_address ，里面的配置已经修改过，只用修改关于主链的节点配置，[consensus.sub.para]下的ParaRemoteGrpcClient里ip配置为主链的ip，端口配置为主链的GRPC端口
+配置和脚本仓库 https://github.com/web3chain33/pressure-test/tree/master/chain33/ycc/para_bty_address ，里面的配置已经修改过，只用修改关于主链的节点配置，[consensus.sub.para]下的ParaRemoteGrpcClient里ip配置为主链的ip，端口配置为主链的GRPC端口
 
 将该目录下的文件都拷贝到服务器
 

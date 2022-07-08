@@ -1,1 +1,1 @@
-./ycc-cli --rpc_laddr=http://localhost:7901 net peer
+./ycc-cli --rpc_laddr=http://localhost:9901 net peer
