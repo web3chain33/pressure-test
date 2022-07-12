@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chendehai/pressure-test/avax"
-	"github.com/chendehai/pressure-test/avax/goods"
+	"github.com/web3chain33/pressure-test/avax"
+	"github.com/web3chain33/pressure-test/avax/goods"
 
 	"github.com/ethereum/go-ethereum/crypto"
 )

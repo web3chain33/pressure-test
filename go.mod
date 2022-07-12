@@ -1,4 +1,4 @@
-module github.com/chendehai/pressure-test
+module github.com/web3chain33/pressure-test
 
 go 1.16
 

@@ -6,7 +6,7 @@ import (
 	log "github.com/33cn/chain33/common/log/log15"
 	"github.com/33cn/chain33/rpc/grpcclient"
 	chainTypes "github.com/33cn/chain33/types"
-	"github.com/chendehai/pressure-test/chain33/util"
+	"github.com/web3chain33/pressure-test/chain33/util"
 	"google.golang.org/grpc"
 	"runtime"
 	"sync"

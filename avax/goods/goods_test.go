@@ -2,7 +2,7 @@ package goods
 
 import (
 	"context"
-	"github.com/chendehai/pressure-test/avax"
+	"github.com/web3chain33/pressure-test/avax"
 	"math/big"
 	"testing"
 
