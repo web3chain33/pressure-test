@@ -2,7 +2,7 @@ Title="user.p.para1."
 TestNet=false
 CoinSymbol="para"
 EnableParaFork=true #true # TODO 不一样
-ChainID=999
+ChainID=39991
 
 [address]
 defaultDriver="eth"
@@ -13,6 +13,7 @@ eth=0
 
 [crypto.sub.secp256k1eth]
 evmChainID=39991
+
 
 [log]
 # 日志级别，支持debug(dbug)/info/warn/error(eror)/crit
@@ -100,14 +101,13 @@ disableExecCheck = true
 name="para"
 minerstart=false #true TODO 没有
 genesisBlockTime=1514533390
-genesis="0x862f23de306f0a35c122b11a6f0769570913d542"
+genesis="0x7fC51c76b90a05C5AC50A6C447827fC147687e88"
 minerExecs=["paracross"]    #配置挖矿合约
 
 [mver.consensus]
 fundKeyAddr = "1BQXS6TxaYYG5mADaWij4AxhZZUTpw95a5"
 powLimitBits = "0x1f00ffff"
 maxTxNumber = 100000
-
 
 [mver.consensus.paracross]
 #超级节点挖矿奖励
@@ -128,7 +128,7 @@ halvePeriod=1000
 [consensus.sub.para]
 #主链节点的grpc服务器ip，当前可以支持多ip负载均衡，如“118.31.177.1:8802,39.97.2.127:8802”
 #ParaRemoteGrpcClient="118.31.177.1:8802,39.97.2.127:8802,120.77.111.44:8802,jiedian2.bityuan.com,cloud.bityuan.com"
-ParaRemoteGrpcClient="121.52.224.86:9902"
+ParaRemoteGrpcClient="183.134.99.131:9902"
 #主链指定高度的区块开始同步
 startHeight=1# TODO 不一样
 #主链指定高度后等待块数，防止主链回滚，联盟链最小为1，小于1则采用缺省高度100
