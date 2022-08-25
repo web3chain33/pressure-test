@@ -5,6 +5,7 @@ import (
 	"fmt"
 	chainCommon "github.com/33cn/chain33/common"
 	chainAddress "github.com/33cn/chain33/common/address"
+	btcAddr "github.com/33cn/chain33/system/address/btc"
 	ethAddr "github.com/33cn/chain33/system/address/eth"
 	chainTypes "github.com/33cn/chain33/types"
 	chainUtil "github.com/33cn/chain33/util"
@@ -19,6 +20,7 @@ import (
 
 const (
 	yccChainId     = 999
+	btyChainId     = 0
 	defaultFeeRate = chainTypes.DefaultMinFee
 	groupSize      = int(chainTypes.MaxTxGroupSize)
 )
@@ -30,7 +32,8 @@ var parasSize = 4
 
 // Ty = signID 用于签名 参考  https://github.com/33cn/chain33/blob/master/types/sign.md 文档
 var Ty = int32(chainTypes.SECP256K1)
-var AddrType = int32(chainAddress.DefaultID)
+var AddrType = int32(btcAddr.NormalAddressID)
+var ChainId = int32(btyChainId)
 
 // CallContract 需要部署的合约
 type DeployeContract struct {
@@ -56,6 +59,7 @@ func SetParasLen(l int) {
 
 func InitTy(chianType string) {
 	if chianType == "ycc" {
+		ChainId = yccChainId
 		AddrType = int32(ethAddr.ID)
 		// 加载, 确保在evm使能高度前, eth地址驱动已使能
 		driver, err := chainAddress.LoadDriver(AddrType, -1)
@@ -121,7 +125,7 @@ func (d *DeployeContract) LocalCreateDeployTx() (*chainTypes.Transaction, error)
 		Payload:   chainTypes.Encode(&action),
 		Signature: nil,
 		To:        toAddr,
-		ChainID:   yccChainId,
+		ChainID:   ChainId,
 	}
 	//十倍手续费保证成功
 	tx.Fee, _ = tx.GetRealFee(10 * defaultFeeRate)
@@ -200,7 +204,7 @@ func (c *CallContract) localCreateYCCEVMTx(parameter string) (*chainTypes.Transa
 
 	random := rand.New(rand.NewSource(time.Now().UnixNano()))
 	tx.Nonce = random.Int63()
-	tx.ChainID = yccChainId
+	tx.ChainID = ChainId
 
 	return tx, nil
 }
